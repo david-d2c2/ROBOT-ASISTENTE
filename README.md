@@ -21,17 +21,23 @@ Y sí, tiene **humor ácido**: te contesta con sorna, pero siempre te da lo que 
 ## ✨ Qué hace
 
 - 🤖 **Personaje 3D** (render estilo Pixar generado con IA) con estados animados: reposo,
-  paseo, escucha, pensamiento, habla y error.
+  paseo, escucha, pensamiento, habla y error. Tamaño ajustable con la rueda del ratón.
 - 💬 **Multi proveedor de IA**: Z.AI (GLM), OpenAI, Gemini o modelos locales en tu PC
   (Ollama, LM Studio, llama.cpp).
-- 🧠 **Memoria de conversación** configurable y botón para olvidarla al instante.
-- ⚡ **Streaming**: ves la respuesta mientras se genera.
-- ⏹ **Cancelación** de la consulta en curso.
-- 🎤 **Voz**: habla y te responde en voz alta; dictado con Google o **local sin conexión**
-  (faster-whisper).
-- 🖥️ **Integración Windows**: bandeja del sistema, instancia única, posición y
-  preferencias persistentes, multimonitor, cierre seguro.
-- 😏 **Personalidad**: sarcasmo divertido, nunca cruel — dardo + solución en dos frases.
+- 🎛️ **Panel de ajustes con asistente inicial**: eliges proveedor, pegas tu clave y
+  «Probar conexión» — sin tocar un `.env` a mano.
+- 🧠 **Memoria de conversación** configurable, historial persistente opcional (SQLite)
+  y botón para olvidarlo todo al instante.
+- ⚡ **Streaming**: ves la respuesta mientras se genera, en un chat con burbujas.
+- 🛠️ **Acciones de escritorio con confirmación**: abrir apps (lista blanca), webs,
+  recordatorios con notificación y notas.
+- 🎤 **Voz**: habla y te responde en voz alta; atajo global de dictado (Ctrl+Alt+R);
+  dictado con Google o **100 % local** (faster-whisper); 🔇 para callarlo sin perder
+  la respuesta.
+- 🖥️ **Integración Windows**: bandeja del sistema, instancia única, preferencias
+  persistentes, multimonitor, cierre seguro y comprobador de actualizaciones.
+- 🎭 **Personalidades**: humor ácido, normal o técnico, cambiables desde ajustes.
+- ♿ **Movimiento reducido** disponible (`REDUCED_MOTION=1`) para pantallas sensibles.
 
 ## 📦 Instalación
 
@@ -40,10 +46,9 @@ Y sí, tiene **humor ácido**: te contesta con sorna, pero siempre te da lo que 
 1. Descarga `RobotAsistente-win64.zip` desde la última
    [**Release**](https://github.com/david-d2c2/ROBOT-ASISTENTE/releases/latest).
 2. Descomprímelo donde quieras (por ejemplo `C:\RobotAsistente`).
-3. Copia `.env.example` como `.env` **dentro de la carpeta descomprimida** y añade tu
-   clave de API (ver [configuración](#-configura-tu-proveedor-env)).
-4. Doble clic en `RobotAsistente.exe`. El `.env` nunca se incluye en el paquete: tus
-   claves no salen de tu equipo.
+3. Doble clic en `RobotAsistente.exe`: **la primera vez se abre el asistente de
+   configuración** — elige proveedor, pega tu clave y pulsa «Probar conexión».
+   (Si prefieres el `.env` clásico, cópialo de `.env.example` junto al exe.)
 
 > El antivirus o SmartScreen pueden avisar la primera vez porque el binario no está
 > firmado: elige «Ejecutar igualmente».
@@ -80,8 +85,10 @@ Solo hay que elegir **un** proveedor con `AI_PROVIDER`:
 | **LM Studio** (local) | `AI_PROVIDER=lmstudio` |
 | **llama.cpp** (local) | `AI_PROVIDER=llamacpp` · `LOCAL_CHAT_URL=http://127.0.0.1:8080/v1/chat/completions` |
 
-Variables opcionales: `CHAT_HISTORY_TURNS` (memoria, 8 por defecto), `ZAI_BASE_URL`
-(plan de código de Z.AI), y todo lo de voz abajo. Ver `.env.example` completo.
+Todo esto (y más) se puede configurar desde **⚙ Ajustes** sin editar archivos.
+Variables extra: `PERSONA` (acido · normal · tecnico), `CHAT_HISTORY_TURNS` (memoria),
+`HOTKEY` (atajo global de dictado), `REDUCED_MOTION` (menos animación),
+`ZAI_BASE_URL` (plan de código de Z.AI). Ver `.env.example` completo.
 
 ## 🗣️ Voz y dictado
 
@@ -104,12 +111,17 @@ Variables opcionales: `CHAT_HISTORY_TURNS` (memoria, 8 por defecto), `ZAI_BASE_U
 
 ## 🕹️ Uso
 
-- **Clic en el robot**: muestra u oculta los controles. Escribe y pulsa Enter, o pulsa 🎤.
-- **⏹** cancela la consulta; **Arrastrar** lo coloca donde quieras; camina solo.
-- **Clic derecho**: controles, «Olvidar conversación» y «Apagar Robot».
-- **✖** lo oculta en la bandeja del sistema; desde la bandeja también se apaga.
+- **Clic en el robot**: muestra u oculta los controles. Escribe y pulsa Enter, o pulsa 🎤
+  (o el **atajo global Ctrl+Alt+R**, configurable con `HOTKEY`).
+- **⏹** cancela la consulta; durante el habla se convierte en **🔇** (callar, la respuesta
+  queda escrita). **Arrastrar** lo coloca donde quieras; camina solo.
+- **Rueda del ratón** sobre el robot: lo hace más grande o pequeño.
+- **Clic derecho**: controles, olvidar conversación, copiar respuesta, ajustes y apagar.
+- **✖** lo oculta en la bandeja del sistema; desde la bandeja también se apaga, se abren
+  los ajustes y se buscan actualizaciones.
 - Si pulsas el acceso directo con el robot ya abierto, aparece y se pone delante.
-- La posición y el estado de la voz se recuerdan entre sesiones.
+- Pídele acciones en lenguaje natural: «abre la calculadora», «recuérdame en 10 min la
+  ropa», «abre github.com» — siempre te pedirá confirmación antes de ejecutar.
 
 ## 🔒 Privacidad
 

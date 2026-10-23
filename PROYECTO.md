@@ -72,7 +72,31 @@ La aplicación permite:
 - El ejecutable lee `.env` desde su propia carpeta (o la del proyecto si se ejecuta
   desde él), nunca lo incluye.
 
-## 4. Funcionamiento interno
+## 4. Versión 2.0 (octubre 2026)
+
+Refactor de arquitectura y salto de producto en seis temas:
+
+1. **Fundación**: `main.py` dividido en `ui/` (ventana, pintado, tema, ajustes) y
+   `core/` (worker, instancia única, ajustes, versión, logging con rotación).
+   CI de GitHub Actions: tests offscreen en cada push y Release compilada al
+   publicar un tag `v*`.
+2. **Ajustes sin fricción**: panel con proveedor, clave, prueba de conexión y
+   asistente de primera ejecución; los cambios se aplican sin reiniciar
+   (`core/envfile` actualiza `.env` y `os.environ`).
+3. **Conversación 2.0**: chat con burbujas y markdown ligero, streaming agregado
+   (120 ms), copiar respuesta, historial persistente opcional en SQLite.
+4. **Acciones de escritorio**: protocolo JSON agnóstico del proveedor, lista
+   blanca de apps, confirmación con «permitir siempre», recordatorios con
+   notificación, notas y apertura de webs.
+5. **Voz**: separación callar/cancelar (🔇/⏹ según estado) y atajo global de
+   dictado con `RegisterHotKey` (`HOTKEY`, Ctrl+Alt+R por defecto).
+6. **Pulido**: tamaño del robot con la rueda, movimiento reducido, repintado
+   parcial, comprobador de actualizaciones y tests visuales de los estados.
+
+Pendiente para 2.1: i18n completa (es/en) de todos los textos, wake word
+(«oye robot») y selector de micrófono.
+
+## 5. Funcionamiento interno
 
 ```text
 Texto o micrófono
@@ -94,7 +118,7 @@ Qt mantiene los cambios de interfaz en el hilo principal. `AIWorker` realiza las
 operaciones lentas; al cancelar se interrumpe y se desconectan sus señales para que
 ningún resultado tardío pise el estado de la interfaz.
 
-## 5. Archivos principales
+## 6. Archivos principales
 
 | Ruta | Función |
 |---|---|
@@ -110,7 +134,7 @@ ningún resultado tardío pise el estado de la interfaz.
 | `crear_acceso_directo.ps1` | Crea o actualiza el acceso directo con icono. |
 | `tests/` | Pruebas de IA, voz, interfaz y lanzador. |
 
-## 6. Configuración
+## 7. Configuración
 
 Copia `.env.example` a `.env` y elige un proveedor:
 
@@ -125,7 +149,7 @@ Para Gemini: `AI_PROVIDER=gemini` con `GEMINI_API_KEY` y `GEMINI_MODEL`.
 Para servidores locales: `ollama`, `lmstudio` o `llamacpp` (ver `.env.example`).
 Voz y dictado: `TTS_*`, `STT_PROVIDER`, `STT_LANGUAGE`, `WHISPER_*`.
 
-## 7. Instalación y ejecución
+## 8. Instalación y ejecución
 
 ```powershell
 python -m venv .venv
@@ -141,7 +165,7 @@ Ejecutable independiente:
 .\build_exe.bat
 ```
 
-## 8. Verificación
+## 9. Verificación
 
 ```powershell
 $env:QT_QPA_PLATFORM="offscreen"
@@ -153,7 +177,7 @@ Las pruebas cubren proveedores (incluido Z.AI), streaming, historial, límites,
 errores, concurrencia, cancelación, cierre, bandeja, persistencia, estados visuales,
 voz (Google y whisper) y estructura del lanzador.
 
-## 9. Mejoras posteriores
+## 10. Mejoras posteriores
 
 1. **Selección de micrófono y voz alternativa offline** (Piper) en la interfaz.
 2. **Memoria persistente opcional** en SQLite con controles de borrado.
@@ -162,7 +186,7 @@ voz (Google y whisper) y estructura del lanzador.
 4. **Instalador firmado** (Inno Setup) sobre el ejecutable de PyInstaller.
 5. **Métricas locales** de latencia y coste aproximado de API.
 
-## 10. Privacidad y seguridad
+## 11. Privacidad y seguridad
 
 - `.env` y las claves quedan fuera de Git y no se incluyen en el ejecutable.
 - El micrófono solo se activa por acción del usuario; con `STT_PROVIDER=whisper`
