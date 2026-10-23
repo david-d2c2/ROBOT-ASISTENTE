@@ -10,12 +10,13 @@ from PyQt6.QtCore import Qt, QTimer, QRect
 from PyQt6.QtGui import QCloseEvent, QIcon, QPixmap, QTextCursor
 from PyQt6.QtSvg import QSvgRenderer
 from PyQt6.QtWidgets import (
-    QApplication, QWidget, QVBoxLayout, QHBoxLayout,
-    QLineEdit, QPushButton, QMenu, QSystemTrayIcon, QTextBrowser,
+    QApplication, QCheckBox, QWidget, QVBoxLayout, QHBoxLayout,
+    QLineEdit, QPushButton, QMenu, QMessageBox, QSystemTrayIcon, QTextBrowser,
     QGraphicsDropShadowEffect
 )
 
 from core import app_settings, envfile
+from core import actions as desktop_actions
 from core.ai_engine import AIEngine
 from core.chat_store import ChatStore
 from core.single_instance import start_instance_server
@@ -639,6 +640,44 @@ class DesktopRobot(RobotPaintingMixin, QWidget):
             self.chat_store.append("user", worker.final_query)
             self.chat_store.append("assistant", response_text)
         self.anchor_to_ground()
+        self._maybe_run_action(response_text)
+
+    # ---- Acciones de escritorio ----
+
+    def _maybe_run_action(self, response_text: str):
+        if not app_settings.value("actions/enabled"):
+            return
+        action = desktop_actions.extract_action(response_text)
+        if action is None:
+            return
+        kind = action.get("action")
+        log.info("Acción solicitada: %s", action)
+        if kind == "open_app" and str(action.get("app", "")).lower() not in desktop_actions.allowed_apps():
+            self._append_message("system", "⛔ Esa app no está en la lista permitida (ajustes).")
+            return
+        if kind not in desktop_actions.always_allowed() and not self._confirm_action(action):
+            self._append_message("system", "🚫 Acción denegada. Que quede entre nosotros.")
+            return
+        ok, message = desktop_actions.execute(action, self.tray)
+        self._append_message("system", message)
+        if not ok:
+            self.state = "ERROR"
+            QTimer.singleShot(1500, self.clear_error_state)
+
+    def _confirm_action(self, action: dict) -> bool:
+        box = QMessageBox(self)
+        box.setWindowTitle(APP_NAME)
+        box.setIcon(QMessageBox.Icon.Question)
+        box.setText("El robot pide permiso para:")
+        box.setInformativeText(desktop_actions.describe(action))
+        always = QCheckBox("Permitir siempre este tipo de acción")
+        box.setCheckBox(always)
+        box.addButton("Permitir", QMessageBox.ButtonRole.AcceptRole)
+        box.addButton("Denegar", QMessageBox.ButtonRole.RejectRole)
+        result = box.exec()
+        if always.isChecked():
+            desktop_actions.allow_kind(action.get("action"))
+        return result == QMessageBox.ButtonRole.AcceptRole.value
 
     def on_worker_error(self, message: str):
         if self._closing:

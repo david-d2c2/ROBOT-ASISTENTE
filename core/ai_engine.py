@@ -1,3 +1,4 @@
+import logging
 import os
 import re
 from pathlib import Path
@@ -5,6 +6,8 @@ import requests
 from dotenv import load_dotenv
 from google import genai
 from google.genai import types
+
+from core import app_settings
 
 # El .env del usuario tiene prioridad (junto al ejecutable); después el del proyecto.
 load_dotenv(Path.cwd() / '.env')
@@ -77,10 +80,21 @@ class AIEngine:
         self.openai_client = None
         self.zai_client = None
 
+    def _system(self) -> str:
+        """Prompt de personalidad + instrucciones de acciones si están activadas."""
+        prompt = self.system_prompt
+        try:
+            if app_settings.value("actions/enabled"):
+                from core.actions import build_prompt_instructions
+                prompt = prompt + "\n\n" + build_prompt_instructions()
+        except Exception:
+            logging.getLogger(__name__).debug("No se pudieron añadir instrucciones de acciones", exc_info=True)
+        return prompt
+
     # ---- Mensajes e historial ----
 
     def _chat_messages(self, prompt, history):
-        messages = [{"role": "system", "content": self.system_prompt}]
+        messages = [{"role": "system", "content": self._system()}]
         for entry in (history or [])[-self.history_turns * 2:]:
             role = entry.get("role") if isinstance(entry, dict) else None
             content = entry.get("content") if isinstance(entry, dict) else None
@@ -139,7 +153,7 @@ class AIEngine:
                 model=self.gemini_model,
                 contents=self._gemini_contents(prompt, history),
                 config=types.GenerateContentConfig(
-                    system_instruction=self.system_prompt,
+                    system_instruction=self._system(),
                     temperature=0.7,
                 )
             )
@@ -242,7 +256,7 @@ class AIEngine:
                 model=self.gemini_model,
                 contents=self._gemini_contents(prompt, history),
                 config=types.GenerateContentConfig(
-                    system_instruction=self.system_prompt,
+                    system_instruction=self._system(),
                     temperature=0.7,
                 )
             )
