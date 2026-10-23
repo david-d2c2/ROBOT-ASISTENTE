@@ -1,7 +1,9 @@
 """Ventana del robot: estados, interacción, bandeja y ciclo de vida."""
+import html
 import logging
 import math
 import os
+import re
 import time
 
 from PyQt6.QtCore import Qt, QTimer, QRect
@@ -9,12 +11,13 @@ from PyQt6.QtGui import QCloseEvent, QIcon, QPixmap, QTextCursor
 from PyQt6.QtSvg import QSvgRenderer
 from PyQt6.QtWidgets import (
     QApplication, QWidget, QVBoxLayout, QHBoxLayout,
-    QLineEdit, QPushButton, QPlainTextEdit, QMenu, QSystemTrayIcon,
+    QLineEdit, QPushButton, QMenu, QSystemTrayIcon, QTextBrowser,
     QGraphicsDropShadowEffect
 )
 
 from core import app_settings, envfile
 from core.ai_engine import AIEngine
+from core.chat_store import ChatStore
 from core.single_instance import start_instance_server
 from core.version import APP_NAME
 from core.voice_engine import VoiceEngine
@@ -60,10 +63,14 @@ class DesktopRobot(RobotPaintingMixin, QWidget):
         self.hovered = False
         self.drag_pos = None
         self.reduced_motion = app_settings.env("REDUCED_MOTION").lower() in ("1", "true", "yes", "on")
+        self.chat_messages: list[dict] = []
+        self._status_text: str | None = None
+        self.chat_store = ChatStore()
 
         self.init_sprite()
         self.init_ui()
         self.init_timers()
+        self._restore_persisted_chat()
         self._maybe_start_setup_wizard()
 
     # ---- Recursos ----
@@ -108,12 +115,11 @@ class DesktopRobot(RobotPaintingMixin, QWidget):
         self.main_layout.setSpacing(6)
         self.main_layout.addStretch(1)
 
-        self.bubble = QPlainTextEdit("Bip-bip. ¿Qué? Haz clic en mí si necesitas algo... total, no tienes nada mejor que hacer.")
-        self.bubble.setReadOnly(True)
-        self.bubble.setFixedHeight(110)
-        self.bubble.setAccessibleName("Respuesta del robot")
-        self.bubble.setFont(self.bubble.font())
-        self.bubble.setStyleSheet(theme.BUBBLE_QSS)
+        self.bubble = QTextBrowser()
+        self.bubble.setOpenExternalLinks(True)
+        self.bubble.setFixedHeight(130)
+        self.bubble.setAccessibleName("Conversación con el robot")
+        self.bubble.setStyleSheet(theme.CHAT_QSS)
         bubble_glow = QGraphicsDropShadowEffect(self)
         bubble_glow.setBlurRadius(14)
         bubble_glow.setColor(theme.CYAN)
@@ -359,6 +365,7 @@ class DesktopRobot(RobotPaintingMixin, QWidget):
             else:
                 talk_action = menu.addAction("Ocultar controles")
             forget_action = menu.addAction("Olvidar conversación")
+            copy_action = menu.addAction("Copiar última respuesta")
             settings_action = menu.addAction("⚙ Ajustes...")
             menu.addSeparator()
             quit_action = menu.addAction("Apagar Robot")
@@ -369,6 +376,8 @@ class DesktopRobot(RobotPaintingMixin, QWidget):
                 self._toggle_controls()
             elif action == forget_action:
                 self.forget_conversation()
+            elif action == copy_action:
+                self.copy_last_answer()
             elif action == settings_action:
                 self._open_settings()
 
@@ -379,15 +388,99 @@ class DesktopRobot(RobotPaintingMixin, QWidget):
             self.anchor_to_ground()
         super().mouseReleaseEvent(event)
 
-    # ---- Burbuja: texto y scroll ----
+    # ---- Chat: render, mensajes y persistencia ----
+
+    GREETING = "Bip-bip. ¿Qué? Haz clic en mí si necesitas algo... total, no tienes nada mejor que hacer."
+
+    @staticmethod
+    def _md_to_html(text: str) -> str:
+        escaped = html.escape(text)
+        escaped = re.sub(r"\*\*(.+?)\*\*", r"<b>\1</b>", escaped)
+        escaped = re.sub(r"`([^`]+)`", r"<code>\1</code>", escaped)
+        return escaped.replace("\n", "<br>")
+
+    def _message_html(self, role: str, text: str) -> str:
+        body = self._md_to_html(text)
+        if role == "user":
+            return (
+                '<table width="100%" cellspacing="0" cellpadding="3"><tr>'
+                '<td align="right"><span style="background-color:#0E3A46; color:#BFF7FF;">'
+                f"&nbsp;{body}&nbsp;</span></td></tr></table>"
+            )
+        if role == "system":
+            return f'<i style="color:#7E93A9;">{body}</i><br>'
+        return (
+            '<table width="100%" cellspacing="0" cellpadding="3"><tr>'
+            '<td align="left"><span style="background-color:#101B2E; color:#8FF7FF;">'
+            f"&nbsp;{body}&nbsp;</span></td></tr></table>"
+        )
+
+    def _render_chat(self):
+        parts = [
+            self._message_html(message["role"], message["text"])
+            for message in self.chat_messages
+        ]
+        if self._status_text:
+            parts.append(self._message_html("system", self._status_text))
+        self.bubble.setHtml("".join(parts) or "&nbsp;")
+        self._bubble_scroll_bottom()
+
+    def _render_chat_soon(self):
+        if not self._render_timer.isActive():
+            self._render_timer.start()
+
+    def last_message_text(self) -> str:
+        if self._status_text:
+            return self._status_text
+        if self.chat_messages:
+            return self.chat_messages[-1]["text"]
+        return ""
+
+    def _append_message(self, role: str, text: str):
+        self.chat_messages.append({"role": role, "text": text})
+        if len(self.chat_messages) > 60:
+            self.chat_messages = self.chat_messages[-60:]
+        self._render_chat()
 
     def _bubble_set_text(self, text: str):
-        self.bubble.setPlainText(text)
-        self._bubble_scroll_bottom()
+        """Reemplaza la conversación visible por un único mensaje del sistema."""
+        self.chat_messages = [{"role": "system", "text": text}]
+        self._status_text = None
+        self._render_chat()
 
     def _bubble_scroll_bottom(self):
         bar = self.bubble.verticalScrollBar()
         bar.setValue(bar.maximum())
+
+    def _restore_persisted_chat(self):
+        self._render_timer = QTimer(self)
+        self._render_timer.setInterval(120)
+        self._render_timer.setSingleShot(True)
+        self._render_timer.timeout.connect(self._render_chat)
+        if not app_settings.value("chat/persist"):
+            self._append_message("system", self.GREETING)
+            return
+        recent = self.chat_store.load_recent(30)
+        for role, text in recent:
+            self.chat_messages.append({"role": role, "text": text})
+        if recent:
+            self.history = [
+                {"role": role, "content": text}
+                for role, text in self.chat_store.load_recent(40)
+            ]
+            self._append_message("system", "(Conversación anterior restaurada)")
+        else:
+            self._append_message("system", self.GREETING)
+
+    def copy_last_answer(self):
+        for message in reversed(self.chat_messages):
+            if message["role"] == "assistant":
+                QApplication.clipboard().setText(message["text"])
+                self._append_message("system", "Respuesta copiada al portapapeles.")
+                return
+        self._append_message("system", "Aún no hay nada que copiar, figuren.")
+
+    # ---- Burbuja: texto y scroll ----
 
     def _set_busy(self, busy: bool):
         self.text_input.setEnabled(not busy)
@@ -415,7 +508,10 @@ class DesktopRobot(RobotPaintingMixin, QWidget):
         self._answer_received = False
         self._had_error = False
         self.state = "LISTENING" if use_mic else "THINKING"
-        self.bubble.setPlainText("🎤 Habla ahora..." if use_mic else "Pensando...")
+        self._status_text = "🎤 Habla ahora..." if use_mic else "Pensando..."
+        if not use_mic:
+            self._append_message("user", prompt)
+        self._render_chat()
         self._set_busy(True)
         self.anchor_to_ground()
         self.worker = AIWorker(
@@ -423,6 +519,7 @@ class DesktopRobot(RobotPaintingMixin, QWidget):
             history=list(self.history),
         )
         self.worker.status_update.connect(self.on_status_update)
+        self.worker.query_ready.connect(self.on_query_ready)
         self.worker.partial_ready.connect(self.on_partial)
         self.worker.answer_ready.connect(self.on_ai_response)
         self.worker.state_changed.connect(self.on_state_changed)
@@ -449,14 +546,15 @@ class DesktopRobot(RobotPaintingMixin, QWidget):
         self.voice.stop()
         self.state = "IDLE"
         self._set_busy(False)
-        self.bubble.setPlainText("Consulta cancelada. Más rápida que tu paciencia, eh.")
+        self._bubble_set_text("Consulta cancelada. Más rápida que tu paciencia, eh.")
         self.anchor_to_ground()
 
     def forget_conversation(self):
         self.history = []
+        self.chat_store.clear()
         if self.worker is None and not self._closing:
             self.state = "IDLE"
-            self.bubble.setPlainText("Memoria borrada. Como si nada hubiera pasado... justo como yo con tus preguntas raras.")
+            self._bubble_set_text("Memoria borrada. Como si nada hubiera pasado... justo como yo con tus preguntas raras.")
 
     # ---- Ajustes ----
 
@@ -501,13 +599,22 @@ class DesktopRobot(RobotPaintingMixin, QWidget):
 
     def on_status_update(self, status_text: str):
         if not self._closing:
-            self._bubble_set_text(status_text)
+            self._status_text = status_text
+            self._render_chat()
+
+    def on_query_ready(self, query: str):
+        if not self._closing:
+            self._append_message("user", query)
 
     def on_partial(self, text: str):
         if self._closing or self.worker is None:
             return
-        self.bubble.setPlainText(text)
-        self._bubble_scroll_bottom()
+        self._status_text = None
+        if self.chat_messages and self.chat_messages[-1]["role"] == "assistant":
+            self.chat_messages[-1]["text"] = text
+        else:
+            self.chat_messages.append({"role": "assistant", "text": text})
+        self._render_chat_soon()
 
     def on_state_changed(self, state: str):
         if not self._closing:
@@ -517,13 +624,20 @@ class DesktopRobot(RobotPaintingMixin, QWidget):
         if self._closing:
             return
         self._answer_received = True
-        self._bubble_set_text(response_text)
+        self._status_text = None
+        if self.chat_messages and self.chat_messages[-1]["role"] == "assistant":
+            self.chat_messages[-1]["text"] = response_text
+        else:
+            self.chat_messages.append({"role": "assistant", "text": response_text})
+        self._render_chat()
         worker = self.worker
         if worker is not None:
             self.history.append({"role": "user", "content": worker.final_query})
             self.history.append({"role": "assistant", "content": response_text})
             if len(self.history) > 40:
                 self.history = self.history[-40:]
+            self.chat_store.append("user", worker.final_query)
+            self.chat_store.append("assistant", response_text)
         self.anchor_to_ground()
 
     def on_worker_error(self, message: str):
@@ -531,11 +645,13 @@ class DesktopRobot(RobotPaintingMixin, QWidget):
             return
         self._had_error = True
         self.state = "ERROR"
-        if self._answer_received:
-            self.bubble.appendPlainText("\n" + message)
-            self._bubble_scroll_bottom()
+        self._status_text = None
+        if self._answer_received and self.chat_messages:
+            last = self.chat_messages[-1]
+            last["text"] = last["text"] + "\n" + message
         else:
-            self._bubble_set_text(message)
+            self.chat_messages.append({"role": "system", "text": message})
+        self._render_chat()
         self.anchor_to_ground()
 
     def on_worker_finished(self, worker=None):
@@ -582,7 +698,7 @@ class DesktopRobot(RobotPaintingMixin, QWidget):
                 if worker is not None:
                     worker.requestInterruption()
             self.voice.stop()
-            self.bubble.setPlainText("Cerrando al terminar la operación en curso...")
+            self._bubble_set_text("Cerrando al terminar la operación en curso...")
             self.text_input.setEnabled(False)
             self.mic_btn.setEnabled(False)
             self.voice_btn.setEnabled(False)

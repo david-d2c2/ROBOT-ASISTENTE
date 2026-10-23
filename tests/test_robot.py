@@ -104,9 +104,7 @@ class RobotTests(unittest.TestCase):
         return worker
 
     def bubble_text(self):
-        if hasattr(self.robot.bubble, 'toPlainText'):
-            return self.robot.bubble.toPlainText()
-        return self.robot.bubble.text()
+        return self.robot.last_message_text()
 
     def test_second_send_and_mic_do_not_replace_active_worker(self):
         first = self.send()

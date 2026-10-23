@@ -11,6 +11,7 @@ log = logging.getLogger(__name__)
 
 class AIWorker(QThread):
     status_update = pyqtSignal(str)
+    query_ready = pyqtSignal(str)
     partial_ready = pyqtSignal(str)
     answer_ready = pyqtSignal(str)
     state_changed = pyqtSignal(str)
@@ -42,6 +43,7 @@ class AIWorker(QThread):
                     return
                 query = result
                 self.final_query = query
+                self.query_ready.emit(query)
                 self.state_changed.emit("THINKING")
                 self.status_update.emit(f"Tú: «{query}»\nPensando...")
 
