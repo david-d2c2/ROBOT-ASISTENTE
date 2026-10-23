@@ -15,12 +15,12 @@ from PyQt6.QtWidgets import (
     QGraphicsDropShadowEffect
 )
 
-from core import app_settings, envfile
+from core import app_settings, envfile, updates
 from core import actions as desktop_actions
 from core.ai_engine import AIEngine
 from core.chat_store import ChatStore
 from core.single_instance import start_instance_server
-from core.version import APP_NAME
+from core.version import APP_NAME, __version__
 from core.voice_engine import VoiceEngine
 from core.worker import AIWorker
 from ui import theme
@@ -73,6 +73,7 @@ class DesktopRobot(RobotPaintingMixin, QWidget):
         self.init_timers()
         self._restore_persisted_chat()
         self._maybe_start_setup_wizard()
+        QTimer.singleShot(4000, lambda: self.check_for_updates(auto=True))
 
     # ---- Recursos ----
 
@@ -208,14 +209,20 @@ class DesktopRobot(RobotPaintingMixin, QWidget):
         self.tray_voice_action.setChecked(True)
         self.tray_voice_action.toggled.connect(self.voice_btn.setChecked)
         forget_action = self.tray_menu.addAction("Olvidar conversación")
+        copy_action = self.tray_menu.addAction("Copiar última respuesta")
         settings_action = self.tray_menu.addAction("⚙ Ajustes...")
+        update_action = self.tray_menu.addAction("🔄 Buscar actualizaciones")
+        about_action = self.tray_menu.addAction(f"Acerca de ({__version__})")
         self.tray_menu.addSeparator()
         quit_action = self.tray_menu.addAction("Apagar robot")
         self.tray.setContextMenu(self.tray_menu)
         self.tray.setToolTip(APP_NAME)
         show_action.triggered.connect(self.toggle_visibility)
         forget_action.triggered.connect(self.forget_conversation)
+        copy_action.triggered.connect(self.copy_last_answer)
         settings_action.triggered.connect(lambda: self._open_settings())
+        update_action.triggered.connect(self.check_for_updates)
+        about_action.triggered.connect(self._show_about)
         quit_action.triggered.connect(self.quit_from_tray)
         self.tray.activated.connect(self.on_tray_activated)
         self.tray.show()
@@ -241,6 +248,40 @@ class DesktopRobot(RobotPaintingMixin, QWidget):
 
     def start_single_instance_server(self):
         self._instance_server = start_instance_server(self.toggle_visibility)
+
+    # ---- Actualizaciones ----
+
+    def check_for_updates(self, auto: bool = False):
+        if auto and not updates.should_auto_check():
+            return
+        if auto:
+            updates.mark_checked()
+
+        def on_result(latest):
+            if latest is None:
+                if not auto:
+                    self._append_message("system", "🔄 No he podido comprobar actualizaciones (¿sin Internet?).")
+                return
+            if updates.is_newer(latest, __version__):
+                self.tray.showMessage(
+                    APP_NAME,
+                    f"Nueva versión {latest} disponible. Descárgala en GitHub → Releases.",
+                    self.tray.icon(), 10000,
+                )
+                self._append_message("system", f"🔄 Nueva versión {latest} disponible en GitHub → Releases.")
+            elif not auto:
+                self._append_message("system", f"✅ Estás en la última versión ({__version__}).")
+
+        self._update_worker = updates.check_in_background(on_result)
+
+    def _show_about(self):
+        QMessageBox.information(
+            self,
+            APP_NAME,
+            f"{APP_NAME} v{__version__}\n\n"
+            "Robot compañero de escritorio con IA, voz y humor ácido.\n"
+            "Código y actualizaciones: github.com/david-d2c2/ROBOT-ASISTENTE",
+        )
 
     @staticmethod
     def assets_dir() -> str:
