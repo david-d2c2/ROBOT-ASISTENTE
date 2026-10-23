@@ -93,7 +93,7 @@ class AIEngineTests(unittest.TestCase):
         self.assertEqual(
             messages,
             [
-                {'role': 'system', 'content': ai_engine.SYSTEM_PROMPT},
+                {'role': 'system', 'content': ai_engine.PERSONA_ACIDO},
                 {'role': 'user', 'content': 'Hola'},
                 {'role': 'assistant', 'content': '¡Bip!'},
                 {'role': 'user', 'content': '¿Todo bien?'},
@@ -200,6 +200,18 @@ class AIEngineTests(unittest.TestCase):
         with self.assertRaises(RuntimeError) as error:
             engine.ask('Hola')
         self.assertNotIn('secret-key', str(error.exception))
+
+    def test_persona_selects_system_prompt_and_defaults_to_acido(self):
+        self.assertEqual(ai_engine.AIEngine().persona, 'acido')
+        os.environ.update(
+            AI_PROVIDER='openai', OPENAI_API_KEY='test', PERSONA='tecnico'
+        )
+        self.openai.return_value.chat.completions.create.return_value = SimpleNamespace(choices=[SimpleNamespace(message=SimpleNamespace(content='Hola'))])
+        engine = ai_engine.AIEngine()
+        self.assertEqual(engine.system_prompt, ai_engine.PERSONA_TECNICO)
+        engine.ask('Hola')
+        messages = self.openai.return_value.chat.completions.create.call_args.kwargs['messages']
+        self.assertEqual(messages[0]['content'], ai_engine.PERSONA_TECNICO)
 
     def test_dotenv_is_loaded_from_project_root(self):
         with patch('dotenv.load_dotenv') as load:

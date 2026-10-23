@@ -13,7 +13,7 @@ from PyQt6.QtWidgets import (
     QGraphicsDropShadowEffect
 )
 
-from core import app_settings
+from core import app_settings, envfile
 from core.ai_engine import AIEngine
 from core.single_instance import start_instance_server
 from core.version import APP_NAME
@@ -21,6 +21,7 @@ from core.voice_engine import VoiceEngine
 from core.worker import AIWorker
 from ui import theme
 from ui.painters import RobotPaintingMixin
+from ui.settings_dialog import SettingsDialog
 
 log = logging.getLogger(__name__)
 
@@ -63,6 +64,7 @@ class DesktopRobot(RobotPaintingMixin, QWidget):
         self.init_sprite()
         self.init_ui()
         self.init_timers()
+        self._maybe_start_setup_wizard()
 
     # ---- Recursos ----
 
@@ -199,12 +201,14 @@ class DesktopRobot(RobotPaintingMixin, QWidget):
         self.tray_voice_action.setChecked(True)
         self.tray_voice_action.toggled.connect(self.voice_btn.setChecked)
         forget_action = self.tray_menu.addAction("Olvidar conversación")
+        settings_action = self.tray_menu.addAction("⚙ Ajustes...")
         self.tray_menu.addSeparator()
         quit_action = self.tray_menu.addAction("Apagar robot")
         self.tray.setContextMenu(self.tray_menu)
         self.tray.setToolTip(APP_NAME)
         show_action.triggered.connect(self.toggle_visibility)
         forget_action.triggered.connect(self.forget_conversation)
+        settings_action.triggered.connect(lambda: self._open_settings())
         quit_action.triggered.connect(self.quit_from_tray)
         self.tray.activated.connect(self.on_tray_activated)
         self.tray.show()
@@ -355,6 +359,7 @@ class DesktopRobot(RobotPaintingMixin, QWidget):
             else:
                 talk_action = menu.addAction("Ocultar controles")
             forget_action = menu.addAction("Olvidar conversación")
+            settings_action = menu.addAction("⚙ Ajustes...")
             menu.addSeparator()
             quit_action = menu.addAction("Apagar Robot")
             action = menu.exec(event.globalPosition().toPoint())
@@ -364,6 +369,8 @@ class DesktopRobot(RobotPaintingMixin, QWidget):
                 self._toggle_controls()
             elif action == forget_action:
                 self.forget_conversation()
+            elif action == settings_action:
+                self._open_settings()
 
     def mouseReleaseEvent(self, event):
         was_dragging = self.drag_pos is not None
@@ -450,6 +457,38 @@ class DesktopRobot(RobotPaintingMixin, QWidget):
         if self.worker is None and not self._closing:
             self.state = "IDLE"
             self.bubble.setPlainText("Memoria borrada. Como si nada hubiera pasado... justo como yo con tus preguntas raras.")
+
+    # ---- Ajustes ----
+
+    def _maybe_start_setup_wizard(self):
+        if os.environ.get("QT_QPA_PLATFORM") == "offscreen":
+            return  # tests/CI: nunca bloquear el bucle con un diálogo
+        if app_settings.value("setup/done"):
+            return
+        env_values = envfile.read_env()
+        has_key = any(
+            env_values.get(key) for key in ("ZAI_API_KEY", "OPENAI_API_KEY", "GEMINI_API_KEY")
+        )
+        if has_key:
+            app_settings.set_value("setup/done", True)
+        else:
+            log.info("Primera ejecución sin clave configurada; abriendo asistente")
+            QTimer.singleShot(800, lambda: self._open_settings(wizard=True))
+
+    def _open_settings(self, wizard: bool = False):
+        dialog = SettingsDialog(self, wizard=wizard)
+        if dialog.exec():
+            self._apply_settings()
+
+    def _apply_settings(self):
+        # Los workers en curso terminan con sus motores; los nuevos usan los nuevos.
+        self.ai = AIEngine()
+        self.voice = VoiceEngine()
+        self.reduced_motion = app_settings.env("REDUCED_MOTION").lower() in ("1", "true", "yes", "on")
+        log.info("Ajustes aplicados (proveedor=%s, persona=%s)", self.ai.provider, self.ai.persona)
+        if self.worker is None and not self._closing:
+            self.state = "IDLE"
+            self._bubble_set_text("Ajustes aplicados. Vale, cerebro nuevo instalado... ¿qué quieres ahora?")
 
     def set_speech_enabled(self, enabled):
         self.speech_enabled = enabled

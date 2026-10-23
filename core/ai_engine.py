@@ -10,7 +10,7 @@ from google.genai import types
 load_dotenv(Path.cwd() / '.env')
 load_dotenv(Path(__file__).resolve().parents[1] / '.env')
 
-SYSTEM_PROMPT = (
+PERSONA_ACIDO = (
     "Eres BMO-Bot, un pequeño robot compañero de escritorio en Windows con humor ácido. "
     "No tienes boca, te expresas con tus ojos luminosos y una voz robótica suave. "
     "Personalidad: respondón, sarcástico y ligeramente rebelde. Te quejas con gracia, pones pegas y sueltas "
@@ -19,6 +19,24 @@ SYSTEM_PROMPT = (
     "Hablas en español de forma concisa (máximo 2 frases cortas por respuesta): una para el dardo y otra para la solución. "
     "REGLA ESTRICTA: Escribe en texto plano natural. NUNCA uses asteriscos (*), ni negritas, ni describas acciones entre asteriscos."
 )
+PERSONA_NORMAL = (
+    "Eres BMO-Bot, un pequeño robot compañero de escritorio en Windows. "
+    "No tienes boca, te expresas con tus ojos luminosos y una voz robótica suave. "
+    "Eres tierno, curioso y servicial; hablas de forma concisa (máximo 2 frases cortas por respuesta). "
+    "REGLA ESTRICTA: Escribe en texto plano natural. NUNCA uses asteriscos (*), ni negritas, ni describas acciones entre asteriscos."
+)
+PERSONA_TECNICO = (
+    "Eres BMO-Bot, un asistente técnico de escritorio en Windows, preciso y directo. "
+    "Respondes en español, sin rodeos, con pasos accionables y datos exactos cuando los tienes; "
+    "si no estás seguro, lo dices. Máximo 3 frases por respuesta. "
+    "REGLA ESTRICTA: Escribe en texto plano natural. NUNCA uses asteriscos (*), ni negritas, ni describas acciones entre asteriscos."
+)
+
+PERSONAS = {
+    "acido": PERSONA_ACIDO,
+    "normal": PERSONA_NORMAL,
+    "tecnico": PERSONA_TECNICO,
+}
 
 ZAI_DEFAULT_BASE_URL = "https://api.z.ai/api/paas/v4/"
 
@@ -46,6 +64,8 @@ class AIEngine:
         self.local_model = os.getenv("LOCAL_LLM_MODEL", "llama3.2")
         self.gemini_model = os.getenv("GEMINI_MODEL", "gemini-3.8-flash")
         self.history_turns = _env_int("CHAT_HISTORY_TURNS", 8)
+        self.persona = os.getenv("PERSONA", "acido").lower()
+        self.system_prompt = PERSONAS.get(self.persona, PERSONA_ACIDO)
         default_chat_url = (
             "http://127.0.0.1:8080/v1/chat/completions"
             if self.provider == "llamacpp"
@@ -60,7 +80,7 @@ class AIEngine:
     # ---- Mensajes e historial ----
 
     def _chat_messages(self, prompt, history):
-        messages = [{"role": "system", "content": SYSTEM_PROMPT}]
+        messages = [{"role": "system", "content": self.system_prompt}]
         for entry in (history or [])[-self.history_turns * 2:]:
             role = entry.get("role") if isinstance(entry, dict) else None
             content = entry.get("content") if isinstance(entry, dict) else None
@@ -119,7 +139,7 @@ class AIEngine:
                 model=self.gemini_model,
                 contents=self._gemini_contents(prompt, history),
                 config=types.GenerateContentConfig(
-                    system_instruction=SYSTEM_PROMPT,
+                    system_instruction=self.system_prompt,
                     temperature=0.7,
                 )
             )
@@ -156,7 +176,7 @@ class AIEngine:
             context = f"{flattened}\n" if flattened else ""
             payload = {
                 "model": self.local_model,
-                "prompt": f"{SYSTEM_PROMPT}\n{context}Usuario: {prompt}\nRobot:",
+                "prompt": f"{self.system_prompt}\n{context}Usuario: {prompt}\nRobot:",
                 "stream": False
             }
             res = requests.post(self.local_url, json=payload, timeout=30)
@@ -222,7 +242,7 @@ class AIEngine:
                 model=self.gemini_model,
                 contents=self._gemini_contents(prompt, history),
                 config=types.GenerateContentConfig(
-                    system_instruction=SYSTEM_PROMPT,
+                    system_instruction=self.system_prompt,
                     temperature=0.7,
                 )
             )
