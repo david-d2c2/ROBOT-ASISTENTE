@@ -3,6 +3,7 @@ import html
 import logging
 import math
 import os
+import random
 import re
 import time
 
@@ -40,6 +41,7 @@ class DesktopRobot(RobotPaintingMixin, QWidget):
     # Fracciones sobre el sprite 3D (512x512) para animar encima del render.
     SPRITE_FACE = (100.8, 176.7, 316.6, 192.7)   # pantalla de cara: x, y, w, h
     SPRITE_ANTENNA = (257.0, 36.0, 22.0)          # bola de antena: cx, cy, radio
+    SPRITE_SIDE_WHEEL = (195.0, 425.0, 46.0)      # rueda visible de perfil: cx, cy, radio
 
     def __init__(self):
         super().__init__()
@@ -68,6 +70,12 @@ class DesktopRobot(RobotPaintingMixin, QWidget):
         self._status_text: str | None = None
         self.chat_store = ChatStore()
 
+        # Paseo: de perfil, con paradas para mirar de frente.
+        self.walk_pose = "profile"   # "profile" (rodando) | "front" (parado, mirando)
+        self._pose_ticks = 0
+        self._pose_switch = 0        # transición de giro (encoge/estira)
+        self._plan_walk()
+
         self.init_sprite()
         self.init_ui()
         self.init_timers()
@@ -78,16 +86,14 @@ class DesktopRobot(RobotPaintingMixin, QWidget):
     # ---- Recursos ----
 
     def init_sprite(self):
-        sprite_path = os.path.join(
-            os.path.dirname(os.path.dirname(os.path.abspath(__file__))),
-            "assets", "sprites3d", "robot-3d.png",
-        )
-        self.robot_sprite = QPixmap(sprite_path) if os.path.exists(sprite_path) else None
+        base = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+        front_path = os.path.join(base, "assets", "sprites3d", "robot-3d.png")
+        self.robot_sprite = QPixmap(front_path) if os.path.exists(front_path) else None
+        side_path = os.path.join(base, "assets", "sprites3d", "robot-side.png")
+        self.robot_side = QPixmap(side_path) if os.path.exists(side_path) else None
+        self._side_mirrored: QPixmap | None = None
         if self.robot_sprite is None:
-            svg_path = os.path.join(
-                os.path.dirname(os.path.dirname(os.path.abspath(__file__))),
-                "assets", "robot-body.svg",
-            )
+            svg_path = os.path.join(base, "assets", "robot-body.svg")
             self.body_svg = QSvgRenderer(svg_path)
             if not self.body_svg.isValid():
                 raise RuntimeError(f"No se pudo cargar el cuerpo del robot: {svg_path}")
@@ -327,6 +333,20 @@ class DesktopRobot(RobotPaintingMixin, QWidget):
         self.anim_timer.timeout.connect(self.update_physics)
         self.anim_timer.start(50)
 
+    # ---- Paseo de perfil con paradas para mirar de frente ----
+
+    def _plan_walk(self):
+        """Segundos caminando antes de pararse a mirar (6–14 s)."""
+        self._pose_ticks = random.randrange(120, 280)
+
+    def _front_pause_ticks(self):
+        """Segundos mirando de frente (1,5–2,8 s)."""
+        return random.randrange(30, 56)
+
+    def _pose_switch_step(self):
+        if self._pose_switch > 0:
+            self._pose_switch -= 1
+
     def update_physics(self):
         self.animation_tick += 1
         self.blink_counter += 1
@@ -335,15 +355,28 @@ class DesktopRobot(RobotPaintingMixin, QWidget):
             if self.blink_counter > 64:
                 self.is_blinking = False
                 self.blink_counter = 0
+        self._pose_switch_step()
 
         if self.state == "MOVING" and self.drag_pos is None and self.isVisible() and not self.reduced_motion:
-            new_x = self.x() + (self.speed * self.direction)
-            if new_x >= self.screen_right:
-                self.direction = -1
-            elif new_x <= self.screen_left:
-                self.direction = 1
-            self.move(max(self.screen_left, min(new_x, self.screen_right)), self.screen_bottom - self.height())
-            self.wheel_angle = (self.wheel_angle + 10 * self.direction) % 360
+            if self.walk_pose == "profile":
+                new_x = self.x() + (self.speed * self.direction)
+                if new_x >= self.screen_right:
+                    self.direction = -1
+                elif new_x <= self.screen_left:
+                    self.direction = 1
+                self.move(max(self.screen_left, min(new_x, self.screen_right)), self.screen_bottom - self.height())
+                self.wheel_angle = (self.wheel_angle + 10 * self.direction) % 360
+                self._pose_ticks -= 1
+                if self._pose_ticks <= 0:
+                    # Se para y mira de frente un momento.
+                    self.walk_pose = "front"
+                    self._pose_ticks = self._front_pause_ticks()
+            else:
+                self._pose_ticks -= 1
+                if self._pose_ticks <= 0:
+                    self.walk_pose = "profile"
+                    self._plan_walk()
+                    self._pose_switch = 6
 
         # Solo repinta la zona del robot: el resto de la ventana es estática.
         self.update(0, self.height() - self.ROBOT_DRAW_HEIGHT - 12, self.width(), self.ROBOT_DRAW_HEIGHT + 12)
@@ -389,8 +422,10 @@ class DesktopRobot(RobotPaintingMixin, QWidget):
             self.anchor_to_ground()
             self.text_input.setFocus()
         else:
-            self.input_container.hide()
             self.state = "MOVING"
+            self.walk_pose = "profile"
+            self._plan_walk()
+            self.input_container.hide()
             self.anchor_to_ground()
 
     def mousePressEvent(self, event):

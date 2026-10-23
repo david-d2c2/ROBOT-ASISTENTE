@@ -286,12 +286,50 @@ class RobotTests(unittest.TestCase):
         ):
             with self.subTest(x=x):
                 self.robot.state = 'MOVING'
+                self.robot.walk_pose = 'profile'
+                self.robot._pose_ticks = 999
                 self.robot.direction = direction
                 self.robot.move(x, self.robot.screen_bottom - self.robot.height())
                 self.robot.update_physics()
                 self.assertEqual(self.robot.direction, expected_direction)
                 self.assertGreaterEqual(self.robot.x(), self.robot.screen_left)
                 self.assertLessEqual(self.robot.x(), self.robot.screen_right)
+
+    def test_walking_pose_pauses_to_look_and_resumes(self):
+        self.robot.show()
+        self.robot.state = 'MOVING'
+        self.robot.walk_pose = 'profile'
+        self.robot._pose_ticks = 1
+        self.robot.update_physics()
+        self.assertEqual(self.robot.walk_pose, 'front')
+        self.assertGreater(self.robot._pose_ticks, 0)
+        ticks = self.robot._pose_ticks
+        self.robot.update_physics()
+        self.assertEqual(self.robot.walk_pose, 'front', 'debe seguir mirando de frente')
+        self.robot._pose_ticks = 1
+        self.robot.update_physics()
+        self.assertEqual(self.robot.walk_pose, 'profile')
+        self.assertGreater(self.robot._pose_ticks, 1)
+
+    def test_side_sprite_is_loaded_and_mirrors_left(self):
+        self.robot.show()
+        self.robot.state = 'MOVING'
+        self.robot.walk_pose = 'profile'
+        if self.robot.robot_side is None:
+            self.skipTest('sprite lateral no disponible')
+        self.robot.direction = 1
+        pixmap_right = self.robot._side_pixmap()
+        self.robot.direction = -1
+        pixmap_left = self.robot._side_pixmap()
+        self.assertTrue(pixmap_left.toImage() != pixmap_right.toImage())
+
+    def test_hiding_controls_resumes_profile_walk(self):
+        self.robot.show()
+        self.robot._toggle_controls()  # muestra controles -> de frente
+        self.assertEqual(self.robot.state, 'IDLE')
+        self.robot._toggle_controls()  # oculta controles -> paseo de perfil
+        self.assertEqual(self.robot.state, 'MOVING')
+        self.assertEqual(self.robot.walk_pose, 'profile')
 
     def test_error_has_a_visible_state_and_safe_reset(self):
         self.robot.on_worker_error('Fallo visible')

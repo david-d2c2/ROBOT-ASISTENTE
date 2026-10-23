@@ -29,6 +29,7 @@ def _eye_pixel(state, direction=1, edge=False):
         robot.direction = direction
         robot.animation_tick = 8
         robot.is_blinking = False
+        robot.walk_pose = 'front'  # los estados se dibujan de frente
         size = ROBOT_H * 0.96
         origin_x = robot.width() / 2 - size / 2
         origin_y = robot.height() - ROBOT_H + (ROBOT_H - size)

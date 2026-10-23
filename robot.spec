@@ -9,6 +9,7 @@ datas = [
     ("assets/robot-assistant.svg", "assets"),
     ("assets/robot-body.svg", "assets"),
     ("assets/sprites3d/robot-3d.png", "assets/sprites3d"),
+    ("assets/sprites3d/robot-side.png", "assets/sprites3d"),
     (".env.example", "."),
 ]
 # SpeechRecognition necesita sus utilidades FLAC para transcribir.

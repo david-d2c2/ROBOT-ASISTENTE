@@ -2,7 +2,7 @@
 import math
 
 from PyQt6.QtCore import QPointF, QRectF, Qt
-from PyQt6.QtGui import QBrush, QColor, QPainter, QPen, QRadialGradient
+from PyQt6.QtGui import QBrush, QColor, QPainter, QPen, QPixmap, QRadialGradient
 
 from ui import theme
 
@@ -26,6 +26,72 @@ class RobotPaintingMixin:
     # ---- Robot 3D: render generado + ojos y antena animados por encima ----
 
     def _paint_sprite_robot(self, painter, phase):
+        walking = (
+            self.state == "MOVING"
+            and self.drag_pos is None
+            and not self.reduced_motion
+        )
+        if walking and self.walk_pose == "profile" and getattr(self, "robot_side", None) is not None:
+            self._paint_side_robot(painter, phase)
+            return
+        self._paint_front_robot(painter, phase)
+
+    def _paint_side_robot(self, painter, phase):
+        """Rodando de perfil: sprite lateral, ruedas girando y bote de rodadura."""
+        painter.setRenderHint(QPainter.RenderHint.SmoothPixmapTransform)
+        size = self.ROBOT_DRAW_HEIGHT * 0.96
+        bob = 0 if self._pose_switch > 0 else int(abs(math.sin(phase * 2)) * 2)
+        origin_y = self.height() - self.ROBOT_DRAW_HEIGHT + (self.ROBOT_DRAW_HEIGHT - size)
+        grow = 1.0
+        if self._pose_switch > 0:
+            grow = 1.0 - 0.85 * (self._pose_switch / 6.0)
+        target_w = size * grow
+        draw_x = self.width() / 2 - target_w / 2
+
+        shadow_center_y = origin_y + size - 6
+        shadow = QRadialGradient(QPointF(self.width() / 2, shadow_center_y), size * 0.48)
+        shadow.setColorAt(0.0, QColor(0, 0, 0, 80))
+        shadow.setColorAt(0.7, QColor(0, 0, 0, 40))
+        shadow.setColorAt(1.0, QColor(0, 0, 0, 0))
+        painter.setBrush(QBrush(shadow))
+        painter.setPen(Qt.PenStyle.NoPen)
+        painter.drawEllipse(
+            QPointF(self.width() / 2, shadow_center_y), size * 0.48, size * 0.11
+        )
+
+        pixmap = self._side_pixmap()
+        painter.drawPixmap(
+            QRectF(draw_x, origin_y + bob, target_w, size), pixmap, QRectF(pixmap.rect())
+        )
+
+        painter.save()
+        painter.translate(draw_x, origin_y + bob)
+        painter.scale(target_w / SPRITE_SCALE_BASE, size / SPRITE_SCALE_BASE)
+        self._draw_side_wheels(painter)
+        painter.restore()
+
+    def _side_pixmap(self) -> QPixmap:
+        if self.direction == -1:
+            if self._side_mirrored is None:
+                self._side_mirrored = QPixmap.fromImage(
+                    self.robot_side.toImage().mirrored(True, False)
+                )
+            return self._side_mirrored
+        return self.robot_side
+
+    def _draw_side_wheels(self, painter):
+        cx, cy, radius = self.SPRITE_SIDE_WHEEL
+        if self.direction == -1:
+            cx = SPRITE_SCALE_BASE - cx
+        angle = math.radians(self.wheel_angle)
+        painter.setPen(QPen(QColor(126, 145, 169), 6, Qt.PenStyle.SolidLine, Qt.PenCapStyle.RoundCap))
+        for extra in (0.0, math.pi / 2):
+            spoke = angle + extra
+            dx = math.cos(spoke) * radius
+            dy = math.sin(spoke) * radius
+            painter.drawLine(QPointF(cx - dx, cy - dy), QPointF(cx + dx, cy + dy))
+
+    def _paint_front_robot(self, painter, phase):
         painter.setRenderHint(QPainter.RenderHint.SmoothPixmapTransform)
         size = self.ROBOT_DRAW_HEIGHT * 0.96
         origin_x = self.width() / 2 - size / 2
