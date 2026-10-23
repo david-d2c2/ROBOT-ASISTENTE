@@ -149,7 +149,7 @@ class DesktopRobot(RobotPaintingMixin, QWidget):
         self.stop_btn.setToolTip("Detener la consulta en curso")
         self.stop_btn.setAccessibleName("Detener consulta")
         self.stop_btn.setStyleSheet(theme.STOP_QSS)
-        self.stop_btn.clicked.connect(self.cancel_current)
+        self.stop_btn.clicked.connect(self.stop_clicked)
         self.stop_btn.hide()
 
         self.close_btn = QPushButton("✖")
@@ -528,6 +528,19 @@ class DesktopRobot(RobotPaintingMixin, QWidget):
         self.worker.finished.connect(lambda w=self.worker: self.on_worker_finished(w))
         self.worker.start()
 
+    def stop_clicked(self):
+        if self.state == "SPEAKING":
+            self.hush_current()
+        else:
+            self.cancel_current()
+
+    def hush_current(self):
+        """Calla la voz sin cancelar la conversación ni la consulta."""
+        if self.worker is None or self._closing:
+            return
+        self.voice.stop()
+        self._append_message("system", "🤫 Callado. La respuesta queda escrita.")
+
     def cancel_current(self):
         worker = self.worker
         if worker is None or self._closing:
@@ -620,6 +633,14 @@ class DesktopRobot(RobotPaintingMixin, QWidget):
     def on_state_changed(self, state: str):
         if not self._closing:
             self.state = state
+            if state == "SPEAKING":
+                self.stop_btn.setText("🔇")
+                self.stop_btn.setToolTip("Callar (la respuesta queda escrita)")
+                self.stop_btn.setAccessibleName("Callar respuesta")
+            else:
+                self.stop_btn.setText("⏹")
+                self.stop_btn.setToolTip("Detener la consulta en curso")
+                self.stop_btn.setAccessibleName("Detener consulta")
 
     def on_ai_response(self, response_text: str):
         if self._closing:

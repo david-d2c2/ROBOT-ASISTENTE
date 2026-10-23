@@ -48,6 +48,7 @@ class VoiceEngine:
         self._stopped.set()
 
     def speak(self, text: str, should_stop=None):
+        self._stopped.clear()  # un 'callar' anterior no debe silenciar la voz nueva
         def cancelled():
             return self._stopped.is_set() or (should_stop is not None and should_stop())
 
@@ -94,6 +95,7 @@ class VoiceEngine:
 
     def listen(self) -> tuple[bool, str]:
         """Devuelve (Exito, Texto_o_Error)"""
+        self._stopped.clear()  # cada escucha nueva resetea la petición de paro
         recognizer = sr.Recognizer()
         recognizer.energy_threshold = 300
         recognizer.dynamic_energy_threshold = True

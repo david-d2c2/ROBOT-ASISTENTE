@@ -202,6 +202,19 @@ class RobotTests(unittest.TestCase):
         self.robot.voice_btn.setChecked(False)
         self.assertTrue(callbacks[0]())
 
+    def test_hush_stops_speech_but_keeps_answer(self):
+        self.send()
+        self.assertTrue(self.ai.entered.wait(1))
+        self.ai.release.set()
+        self.until(self.voice.entered.is_set)
+        self.until(lambda: self.robot.state == 'SPEAKING')
+        self.robot.stop_clicked()
+        self.until(lambda: getattr(self.robot, 'worker', None) is None)
+        texts = [message['text'] for message in self.robot.chat_messages]
+        self.assertIn('Respuesta conservada', texts)
+        self.assertTrue(self.robot.text_input.isEnabled())
+        self.assertTrue(self.voice.stopped)
+
     def test_history_accumulates_and_forget_clears_it(self):
         self.send()
         self.ai.release.set()

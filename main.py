@@ -10,7 +10,8 @@ import os
 from PyQt6.QtGui import QIcon
 from PyQt6.QtWidgets import QApplication, QMessageBox
 
-from core import single_instance
+from core import single_instance, app_settings
+from core.hotkey import register_global_hotkey
 from core.logging_setup import configure_logging
 from core.version import APP_NAME, ORG_NAME, __version__
 from ui.robot_window import DesktopRobot
@@ -46,6 +47,15 @@ def main() -> int:
     robot = DesktopRobot()
     robot.show()
     robot.start_single_instance_server()
+
+    hotkey_filter = register_global_hotkey(
+        app_settings.env("HOTKEY", "Ctrl+Alt+R"), robot.start_listening
+    )
+    if hotkey_filter is not None:
+        app.installNativeEventFilter(hotkey_filter)
+    else:
+        log.info("Sin atajo global (usa HOTKEY=Ctrl+Shift+Espacio, por ejemplo)")
+
     exit_code = app.exec()
     log.info("Salida con código %s", exit_code)
     return exit_code

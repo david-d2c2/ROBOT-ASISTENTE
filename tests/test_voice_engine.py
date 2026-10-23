@@ -150,14 +150,14 @@ class VoiceEngineTests(unittest.TestCase):
         self.assertEqual(self.communicate.call_args.kwargs['rate'], '+20%')
         self.assertEqual(self.communicate.call_args.kwargs['pitch'], '+5Hz')
 
-    def test_stop_after_capture_skips_recognition(self):
+    def test_stop_is_reset_by_the_next_listen(self):
         with patch('core.voice_engine.sr.Recognizer') as factory, patch('core.voice_engine.sr.Microphone'):
             engine = VoiceEngine()
             engine.stop()
-            success, message = engine.listen()
-            self.assertFalse(success)
-            self.assertIn('cancelada', message)
-            factory.return_value.recognize_google.assert_not_called()
+            factory.return_value.recognize_google.return_value = 'hola'
+            success, text = engine.listen()
+            self.assertTrue(success)
+            self.assertEqual(text, 'hola')
 
     def test_empty_transcription_is_reported_as_unintelligible(self):
         with patch('core.voice_engine.sr.Recognizer') as factory, patch('core.voice_engine.sr.Microphone'):
