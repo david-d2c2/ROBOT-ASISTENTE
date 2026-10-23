@@ -1,0 +1,16 @@
+.env
+.env.*
+!.env.example
+.venv/
+.serena/
+__pycache__/
+*.py[cod]
+logs/
+*.log
+tests/tmp*/
+build/
+dist/
+_output/
+assets/sprites3d/robot-3d-green.png
+_debug_eyes.png
+garden-gpt-image-2/

@@ -1,0 +1,29 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 256 256">
+  <defs>
+    <linearGradient id="tile" x1="32" y1="20" x2="224" y2="236" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#1A2638"/>
+      <stop offset="1" stop-color="#090D15"/>
+    </linearGradient>
+    <radialGradient id="shell" cx="0" cy="0" r="1" gradientTransform="translate(102 89) rotate(49) scale(112 104)" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#FFFFFF"/>
+      <stop offset="0.55" stop-color="#D7E1EE"/>
+      <stop offset="1" stop-color="#8090A6"/>
+    </radialGradient>
+    <filter id="glow" x="-40%" y="-40%" width="180%" height="180%">
+      <feGaussianBlur stdDeviation="5"/>
+    </filter>
+  </defs>
+  <rect x="10" y="10" width="236" height="236" rx="58" fill="url(#tile)" stroke="#263A50" stroke-width="4"/>
+  <circle cx="128" cy="128" r="91" fill="#00F0FF" opacity=".10"/>
+  <circle cx="128" cy="128" r="76" fill="none" stroke="#00F0FF" stroke-width="4" opacity=".23" filter="url(#glow)"/>
+  <rect x="42" y="171" width="39" height="51" rx="15" fill="#293342" stroke="#101722" stroke-width="5"/>
+  <rect x="175" y="171" width="39" height="51" rx="15" fill="#293342" stroke="#101722" stroke-width="5"/>
+  <path d="M53 196h17M186 196h17" stroke="#7E91A9" stroke-width="5" stroke-linecap="round"/>
+  <rect x="45" y="50" width="166" height="150" rx="54" fill="url(#shell)" stroke="#687990" stroke-width="6"/>
+  <path d="M67 74c19-22 57-31 88-21" fill="none" stroke="white" stroke-width="10" stroke-linecap="round" opacity=".55"/>
+  <rect x="63" y="79" width="130" height="86" rx="34" fill="#101722" stroke="#314156" stroke-width="5"/>
+  <rect x="87" y="105" width="26" height="39" rx="13" fill="#00F0FF"/>
+  <rect x="143" y="105" width="26" height="39" rx="13" fill="#00F0FF"/>
+  <circle cx="99" cy="116" r="5" fill="white" opacity=".78"/>
+  <circle cx="155" cy="116" r="5" fill="white" opacity=".78"/>
+</svg>

@@ -1,0 +1,10 @@
+# Versiones instaladas y utilizadas en la verificación local (Python 3.12).
+PyQt6==6.11.0
+google-genai==2.31.0
+requests==2.34.2
+python-dotenv==1.2.4
+edge-tts==7.3.1
+pygame==2.6.1
+SpeechRecognition==3.17.0
+PyAudio==0.2.14
+openai==3.35.1

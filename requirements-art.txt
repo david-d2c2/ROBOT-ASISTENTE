@@ -1,0 +1,2 @@
+# Opcional: solo para ejecutar make_sprites.py. No validado en este lote.
+Pillow>=10

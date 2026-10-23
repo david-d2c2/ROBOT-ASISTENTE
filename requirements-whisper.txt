@@ -1,0 +1,4 @@
+# Dictado local opcional (privacidad total, sin enviar audio a Internet).
+# Actívalo con STT_PROVIDER=whisper en .env. El modelo se descarga solo la
+# primera vez (~75 MB para "base") y luego funciona sin conexión.
+faster-whisper>=1.0
