@@ -340,6 +340,36 @@ class RobotTests(unittest.TestCase):
         self.robot._toggle_controls()  # controles abiertos -> de frente y con burbuja
         self.assertTrue(self.robot.bubble.isVisibleTo(self.robot))
 
+    def test_walk_quip_is_spoken_aloud(self):
+        spoken = []
+        self.voice.speak = lambda text, should_stop=None: spoken.append(text)
+        self.robot.show()
+        self.robot.state = 'MOVING'
+        self.robot.walk_pose = 'profile'
+        self.robot._pose_ticks = 1
+        self.robot.update_physics()
+        deadline = time.monotonic() + 2
+        while not spoken and time.monotonic() < deadline:
+            self.app.processEvents()
+            time.sleep(0.01)
+        self.assertEqual(spoken, [self.robot._solo_text])
+
+    def test_walk_quip_silent_when_voice_muted(self):
+        spoken = []
+        self.voice.speak = lambda text, should_stop=None: spoken.append(text)
+        self.robot.speech_enabled = False
+        self.robot.show()
+        self.robot.state = 'MOVING'
+        self.robot.walk_pose = 'profile'
+        self.robot._pose_ticks = 1
+        self.robot.update_physics()
+        deadline = time.monotonic() + 0.3
+        while time.monotonic() < deadline:
+            self.app.processEvents()
+            time.sleep(0.01)
+        self.assertEqual(spoken, [])
+        self.assertIsNotNone(self.robot._solo_text, 'la frase se muestra aunque esté mudo')
+
     def test_side_sprite_is_loaded_and_mirrors_left(self):
         self.robot.show()
         self.robot.state = 'MOVING'

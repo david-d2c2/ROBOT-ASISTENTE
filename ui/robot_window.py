@@ -5,6 +5,7 @@ import math
 import os
 import random
 import re
+import threading
 import time
 
 from PyQt6.QtCore import Qt, QTimer, QRect
@@ -76,6 +77,7 @@ class DesktopRobot(RobotPaintingMixin, QWidget):
         self._pose_ticks = 0
         self._pose_switch = 0        # transición de giro (encoge/estira)
         self._bubble_visible = True
+        self._quip_busy = False      # hay una frase del paseo sonando
         self._plan_walk()
 
         self.init_sprite()
@@ -349,6 +351,22 @@ class DesktopRobot(RobotPaintingMixin, QWidget):
         if self._pose_switch > 0:
             self._pose_switch -= 1
 
+    def _speak_quip(self, text: str):
+        """Dice la frase del paseo en voz alta, en segundo plano y sin solaparse."""
+        if not self.speech_enabled or self.worker is not None or self._quip_busy:
+            return
+        self._quip_busy = True
+
+        def talk():
+            try:
+                self.voice.speak(text)
+            except Exception:
+                log.info("No se pudo decir la frase del paseo", exc_info=True)
+            finally:
+                self._quip_busy = False
+
+        threading.Thread(target=talk, daemon=True, name="quip-voice").start()
+
     def _update_bubble_visibility(self):
         """Rodando de perfil, sin burbuja; de frente o conversando, con ella."""
         rolling = (
@@ -387,12 +405,14 @@ class DesktopRobot(RobotPaintingMixin, QWidget):
                 self.wheel_angle = (self.wheel_angle + 10 * self.direction) % 360
                 self._pose_ticks -= 1
                 if self._pose_ticks <= 0:
-                    # Se para y mira de frente un momento, con frase ácida.
+                    # Se para y mira de frente un momento, con frase ácida dicha en voz alta.
                     self.walk_pose = "front"
                     self._pose_ticks = self._front_pause_ticks()
-                    self._solo_text = random.choice(self.WALK_QUIPS)
+                    quip = random.choice(self.WALK_QUIPS)
+                    self._solo_text = quip
                     self._update_bubble_visibility()
                     self._render_chat()
+                    self._speak_quip(quip)
             else:
                 self._pose_ticks -= 1
                 if self._pose_ticks <= 0:
@@ -442,6 +462,7 @@ class DesktopRobot(RobotPaintingMixin, QWidget):
         if self.input_container.isHidden():
             self.state = "IDLE"
             self._solo_text = None
+            self.voice.stop()  # corta la frase del paseo si estaba sonando
             self._render_chat()
             self.input_container.show()
             self.anchor_to_ground()

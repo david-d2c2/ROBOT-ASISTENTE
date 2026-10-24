@@ -22,8 +22,9 @@ Y sí, tiene **humor ácido**: te contesta con sorna, pero siempre te da lo que 
 
 - 🤖 **Personaje 3D** (render estilo Pixar generado con IA) con estados animados: reposo,
   paseo, escucha, pensamiento, habla y error. Al caminar se muestra **de perfil con las
-  ruedas girando**, se para a mirarte de vez en cuando y, al hacer clic, se gira de
-  frente para atenderte. Tamaño ajustable con la rueda del ratón.
+  ruedas girando**, se para a mirarte de vez en cuando soltando una frase ácida (que
+  **dice en voz alta**) y, al hacer clic, se gira de frente para atenderte. Tamaño
+  ajustable con la rueda del ratón.
 - 💬 **Multi proveedor de IA**: Z.AI (GLM), OpenAI, Gemini o modelos locales en tu PC
   (Ollama, LM Studio, llama.cpp).
 - 🎛️ **Panel de ajustes con asistente inicial**: eliges proveedor, pegas tu clave y
