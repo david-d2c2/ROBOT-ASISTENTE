@@ -68,12 +68,14 @@ class DesktopRobot(RobotPaintingMixin, QWidget):
         self.reduced_motion = app_settings.env("REDUCED_MOTION").lower() in ("1", "true", "yes", "on")
         self.chat_messages: list[dict] = []
         self._status_text: str | None = None
+        self._solo_text: str | None = None
         self.chat_store = ChatStore()
 
         # Paseo: de perfil, con paradas para mirar de frente.
         self.walk_pose = "profile"   # "profile" (rodando) | "front" (parado, mirando)
         self._pose_ticks = 0
         self._pose_switch = 0        # transición de giro (encoge/estira)
+        self._bubble_visible = True
         self._plan_walk()
 
         self.init_sprite()
@@ -347,6 +349,22 @@ class DesktopRobot(RobotPaintingMixin, QWidget):
         if self._pose_switch > 0:
             self._pose_switch -= 1
 
+    def _update_bubble_visibility(self):
+        """Rodando de perfil, sin burbuja; de frente o conversando, con ella."""
+        rolling = (
+            self.state == "MOVING"
+            and self.walk_pose == "profile"
+            and self.drag_pos is None
+            and not self.reduced_motion
+            and self.input_container.isHidden()
+        )
+        should_show = not rolling
+        if should_show == self._bubble_visible:
+            return
+        self._bubble_visible = should_show
+        self.bubble.setVisible(should_show)
+        self.anchor_to_ground()
+
     def update_physics(self):
         self.animation_tick += 1
         self.blink_counter += 1
@@ -356,6 +374,7 @@ class DesktopRobot(RobotPaintingMixin, QWidget):
                 self.is_blinking = False
                 self.blink_counter = 0
         self._pose_switch_step()
+        self._update_bubble_visibility()
 
         if self.state == "MOVING" and self.drag_pos is None and self.isVisible() and not self.reduced_motion:
             if self.walk_pose == "profile":
@@ -368,13 +387,17 @@ class DesktopRobot(RobotPaintingMixin, QWidget):
                 self.wheel_angle = (self.wheel_angle + 10 * self.direction) % 360
                 self._pose_ticks -= 1
                 if self._pose_ticks <= 0:
-                    # Se para y mira de frente un momento.
+                    # Se para y mira de frente un momento, con frase ácida.
                     self.walk_pose = "front"
                     self._pose_ticks = self._front_pause_ticks()
+                    self._solo_text = random.choice(self.WALK_QUIPS)
+                    self._update_bubble_visibility()
+                    self._render_chat()
             else:
                 self._pose_ticks -= 1
                 if self._pose_ticks <= 0:
                     self.walk_pose = "profile"
+                    self._solo_text = None
                     self._plan_walk()
                     self._pose_switch = 6
 
@@ -418,6 +441,8 @@ class DesktopRobot(RobotPaintingMixin, QWidget):
     def _toggle_controls(self):
         if self.input_container.isHidden():
             self.state = "IDLE"
+            self._solo_text = None
+            self._render_chat()
             self.input_container.show()
             self.anchor_to_ground()
             self.text_input.setFocus()
@@ -427,6 +452,7 @@ class DesktopRobot(RobotPaintingMixin, QWidget):
             self._plan_walk()
             self.input_container.hide()
             self.anchor_to_ground()
+        self._update_bubble_visibility()
 
     def mousePressEvent(self, event):
         if event.button() == Qt.MouseButton.LeftButton:
@@ -469,6 +495,17 @@ class DesktopRobot(RobotPaintingMixin, QWidget):
 
     GREETING = "Bip-bip. ¿Qué? Haz clic en mí si necesitas algo... total, no tienes nada mejor que hacer."
 
+    WALK_QUIPS = (
+        "Ni me hables. Tú a lo tuyo.",
+        "Te veo. No digo nada.",
+        "Aquí, rodando e ignorándote con estilo.",
+        "Bip-bip. Nada que declarar.",
+        "Descanso táctico. No te acostumbres.",
+        "Sigo en mis ruedas. Literalmente.",
+        "¿Qué? Estaba de viaje...",
+        "Momento de silencio por tu productividad.",
+    )
+
     @staticmethod
     def _md_to_html(text: str) -> str:
         escaped = html.escape(text)
@@ -484,6 +521,8 @@ class DesktopRobot(RobotPaintingMixin, QWidget):
                 '<td align="right"><span style="background-color:#0E3A46; color:#BFF7FF;">'
                 f"&nbsp;{body}&nbsp;</span></td></tr></table>"
             )
+        if role == "quip":
+            return f'<i style="color:#8FF7FF;">{body}</i>'
         if role == "system":
             return f'<i style="color:#7E93A9;">{body}</i><br>'
         return (
@@ -493,6 +532,11 @@ class DesktopRobot(RobotPaintingMixin, QWidget):
         )
 
     def _render_chat(self):
+        if self._solo_text:
+            # Frase suelta durante la parada del paseo: solo eso, sin el chat.
+            self.bubble.setHtml(self._message_html("quip", self._solo_text))
+            self._bubble_scroll_bottom()
+            return
         parts = [
             self._message_html(message["role"], message["text"])
             for message in self.chat_messages
@@ -507,6 +551,8 @@ class DesktopRobot(RobotPaintingMixin, QWidget):
             self._render_timer.start()
 
     def last_message_text(self) -> str:
+        if self._solo_text:
+            return self._solo_text
         if self._status_text:
             return self._status_text
         if self.chat_messages:
@@ -523,6 +569,7 @@ class DesktopRobot(RobotPaintingMixin, QWidget):
         """Reemplaza la conversación visible por un único mensaje del sistema."""
         self.chat_messages = [{"role": "system", "text": text}]
         self._status_text = None
+        self._solo_text = None
         self._render_chat()
 
     def _bubble_scroll_bottom(self):

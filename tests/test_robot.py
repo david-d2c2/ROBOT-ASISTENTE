@@ -303,6 +303,9 @@ class RobotTests(unittest.TestCase):
         self.robot.update_physics()
         self.assertEqual(self.robot.walk_pose, 'front')
         self.assertGreater(self.robot._pose_ticks, 0)
+        # Al mirar de frente suelta una frase ácida sin machacar el chat.
+        self.assertIn(self.robot._solo_text, self.robot.WALK_QUIPS)
+        self.assertEqual(self.bubble_text(), self.robot._solo_text)
         ticks = self.robot._pose_ticks
         self.robot.update_physics()
         self.assertEqual(self.robot.walk_pose, 'front', 'debe seguir mirando de frente')
@@ -310,6 +313,32 @@ class RobotTests(unittest.TestCase):
         self.robot.update_physics()
         self.assertEqual(self.robot.walk_pose, 'profile')
         self.assertGreater(self.robot._pose_ticks, 1)
+        self.assertIsNone(self.robot._solo_text)
+
+    def test_click_clears_quip_and_shows_conversation(self):
+        self.robot.show()
+        self.robot.state = 'MOVING'
+        self.robot.walk_pose = 'front'
+        self.robot._solo_text = 'Ni me hables. Tú a lo tuyo.'
+        self.robot._toggle_controls()
+        self.assertIsNone(self.robot._solo_text)
+        self.assertEqual(self.robot.state, 'IDLE')
+
+    def test_bubble_hidden_while_rolling_visible_when_front(self):
+        self.robot.show()
+        self.robot.state = 'MOVING'
+        self.robot.walk_pose = 'profile'
+        self.robot._pose_ticks = 999
+        self.robot.update_physics()
+        self.assertFalse(self.robot.bubble.isVisibleTo(self.robot))
+        self.robot.walk_pose = 'front'
+        self.robot.update_physics()
+        self.assertTrue(self.robot.bubble.isVisibleTo(self.robot))
+        self.robot.walk_pose = 'profile'
+        self.robot.update_physics()
+        self.assertFalse(self.robot.bubble.isVisibleTo(self.robot))
+        self.robot._toggle_controls()  # controles abiertos -> de frente y con burbuja
+        self.assertTrue(self.robot.bubble.isVisibleTo(self.robot))
 
     def test_side_sprite_is_loaded_and_mirrors_left(self):
         self.robot.show()
