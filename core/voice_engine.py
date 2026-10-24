@@ -44,6 +44,10 @@ class VoiceEngine:
         self.whisper_model = _env("WHISPER_MODEL", "base")
         self.whisper_device = _env("WHISPER_DEVICE", "auto")
         self.whisper_compute = _env("WHISPER_COMPUTE", "int8")
+        self.mic_index = None
+        raw_mic = os.getenv("MIC_INDEX", "").strip()
+        if raw_mic.isdigit():
+            self.mic_index = int(raw_mic)
         self._whisper = None
         self._whisper_lock = threading.Lock()
         self._piper = None
@@ -129,7 +133,7 @@ class VoiceEngine:
         recognizer.operation_timeout = 15
 
         try:
-            with sr.Microphone() as source:
+            with sr.Microphone(device_index=self.mic_index) as source:
                 recognizer.adjust_for_ambient_noise(source, duration=0.3)
                 audio = recognizer.listen(source, timeout=6, phrase_time_limit=12)
         except sr.WaitTimeoutError:

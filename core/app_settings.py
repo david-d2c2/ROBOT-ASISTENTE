@@ -16,6 +16,7 @@ DEFAULTS = {
     "actions/always_allow": "",
     "updates/last_check": "",
     "setup/done": False,
+    "skin": "clasico",
     "hands_free": False,
 }
 

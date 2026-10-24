@@ -4,15 +4,17 @@ import logging
 import math
 import os
 import random
+import subprocess
 import threading
 import time
+from pathlib import Path
 
 from PyQt6.QtCore import Qt, QTimer, QRect
 from PyQt6.QtGui import QCloseEvent, QPixmap
 from PyQt6.QtSvg import QSvgRenderer
 from PyQt6.QtWidgets import (
     QApplication, QCheckBox, QWidget, QVBoxLayout, QHBoxLayout,
-    QLineEdit, QPushButton, QMenu, QMessageBox, QSystemTrayIcon, QTextBrowser,
+    QFileDialog, QLineEdit, QPushButton, QMenu, QMessageBox, QSystemTrayIcon, QTextBrowser,
     QGraphicsDropShadowEffect
 )
 
@@ -129,6 +131,7 @@ class DesktopRobot(RobotPaintingMixin, QWidget):
         self.setAttribute(Qt.WidgetAttribute.WA_TranslucentBackground)
         self.setMouseTracking(True)
         self.setFixedWidth(340)
+        theme.set_skin(str(app_settings.value("skin") or "clasico"))
         self.ROBOT_DRAW_HEIGHT = max(
             ROBOT_HEIGHT_MIN, min(ROBOT_HEIGHT_MAX,
                                   int(app_settings.value("window/robot_height") or 120))
@@ -146,10 +149,10 @@ class DesktopRobot(RobotPaintingMixin, QWidget):
 
         self.bubble = ChatView(self)
         self.bubble.setFixedHeight(130)
-        self.bubble.setStyleSheet(theme.CHAT_QSS)
+        self.bubble.setStyleSheet(theme.CHAT_QSS())
         bubble_glow = QGraphicsDropShadowEffect(self)
         bubble_glow.setBlurRadius(14)
-        bubble_glow.setColor(theme.CYAN)
+        bubble_glow.setColor(theme.accent())
         bubble_glow.setOffset(0, 0)
         self.bubble.setGraphicsEffect(bubble_glow)
         self.main_layout.addWidget(self.bubble)
@@ -161,34 +164,34 @@ class DesktopRobot(RobotPaintingMixin, QWidget):
 
         self.text_input = QLineEdit()
         self.text_input.setPlaceholderText("Escribe algo...")
-        self.text_input.setStyleSheet(theme.INPUT_QSS)
+        self.text_input.setStyleSheet(theme.INPUT_QSS())
         self.text_input.returnPressed.connect(self.send_text)
 
         self.mic_btn = QPushButton("🎤")
         self.mic_btn.setFixedSize(34, 28)
         self.mic_btn.setToolTip("Hablar por micrófono")
-        self.mic_btn.setStyleSheet(theme.MIC_QSS)
+        self.mic_btn.setStyleSheet(theme.MIC_QSS())
         self.mic_btn.clicked.connect(self.start_listening)
 
         self.capture_btn = QPushButton("📷")
         self.capture_btn.setFixedSize(34, 28)
         self.capture_btn.setToolTip("Capturar una zona de la pantalla y preguntarle al robot")
         self.capture_btn.setAccessibleName("Capturar pantalla")
-        self.capture_btn.setStyleSheet(theme.MIC_QSS)
+        self.capture_btn.setStyleSheet(theme.MIC_QSS())
         self.capture_btn.clicked.connect(self.start_capture)
 
         self.stop_btn = QPushButton("⏹")
         self.stop_btn.setFixedSize(34, 28)
         self.stop_btn.setToolTip("Detener la consulta en curso")
         self.stop_btn.setAccessibleName("Detener consulta")
-        self.stop_btn.setStyleSheet(theme.STOP_QSS)
+        self.stop_btn.setStyleSheet(theme.STOP_QSS())
         self.stop_btn.clicked.connect(self.stop_clicked)
         self.stop_btn.hide()
 
         self.close_btn = QPushButton("✖")
         self.close_btn.setFixedSize(34, 28)
         self.close_btn.setToolTip("Ocultar (el robot sigue en la bandeja); apaga desde el menú contextual o la bandeja")
-        self.close_btn.setStyleSheet(theme.CLOSE_QSS)
+        self.close_btn.setStyleSheet(theme.CLOSE_QSS())
         self.close_btn.clicked.connect(self.close)
 
         self.voice_btn = QPushButton("Voz")
@@ -197,7 +200,7 @@ class DesktopRobot(RobotPaintingMixin, QWidget):
         self.voice_btn.setFixedSize(42, 28)
         self.voice_btn.setToolTip("Leer respuestas con Microsoft (Internet)")
         self.voice_btn.setAccessibleName("Activar voz")
-        self.voice_btn.setStyleSheet(theme.VOICE_QSS)
+        self.voice_btn.setStyleSheet(theme.VOICE_QSS())
         self.voice_btn.toggled.connect(self.set_speech_enabled)
 
         self.mic_btn.setToolTip("Transcribir con Google (Internet); usa el micrófono predeterminado")
@@ -332,16 +335,51 @@ class DesktopRobot(RobotPaintingMixin, QWidget):
                     self._append_message("system", "🔄 No he podido comprobar actualizaciones (¿sin Internet?).")
                 return
             if updates.is_newer(latest, __version__):
-                self.tray.showMessage(
+                if updates.can_self_update():
+                    self._offer_update(latest)
+                    return
+                self.tray_controller.notify(
                     APP_NAME,
-                    f"Nueva versión {latest} disponible. Descárgala en GitHub → Releases.",
-                    self.tray.icon(), 10000,
+                    f"Nueva versión {latest} disponible en GitHub → Releases.",
+                    10000,
                 )
-                self._append_message("system", f"🔄 Nueva versión {latest} disponible en GitHub → Releases.")
+                self._append_message("system", f"🔄 Nueva versión {latest} disponible (estás desde código: git pull).")
             elif not auto:
                 self._append_message("system", f"✅ Estás en la última versión ({__version__}).")
 
         self._update_worker = updates.check_in_background(on_result)
+
+    def _offer_update(self, latest: str):
+        box = QMessageBox(self)
+        box.setWindowTitle(APP_NAME)
+        box.setIcon(QMessageBox.Icon.Question)
+        box.setText(f"Hay una versión nueva ({latest}).")
+        box.setInformativeText("¿Descargar e instalar ahora? El robot se reiniciará solo.")
+        box.setStandardButtons(
+            QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No
+        )
+        if box.exec() != QMessageBox.StandardButton.Yes.value:
+            self._append_message("system", f"Actualización {latest} pospuesta. Estará en la bandeja.")
+            return
+        self._append_message("system", f"⬇️ Descargando v{latest}... (el paquete pesa ~135 MB)")
+        self._update_worker = updates.UpdateDownloadWorker(latest)
+        self._update_worker.done.connect(self._on_update_downloaded)
+        self._update_worker.start()
+
+    def _on_update_downloaded(self, ok: bool, payload):
+        if not ok:
+            self._append_message("system", f"⛔ La actualización falló: {payload}")
+            return
+        box = QMessageBox(self)
+        box.setWindowTitle(APP_NAME)
+        box.setText("Actualización descargada.")
+        box.setInformativeText("Se cerrará el robot, se aplicará y se volverá a abrir solo.")
+        box.setStandardButtons(QMessageBox.StandardButton.Ok)
+        box.exec()
+        log.info("Aplicando actualización: %s", payload)
+        subprocess.Popen(["cmd", "/c", str(payload)], shell=False)
+        self._quitting = True
+        self.close()
 
     def _show_about(self):
         QMessageBox.information(
@@ -549,6 +587,7 @@ class DesktopRobot(RobotPaintingMixin, QWidget):
                 talk_action = menu.addAction("Ocultar controles")
             forget_action = menu.addAction("Olvidar conversación")
             copy_action = menu.addAction("Copiar última respuesta")
+            export_action = menu.addAction("📤 Exportar conversación...")
             settings_action = menu.addAction("⚙ Ajustes...")
             menu.addSeparator()
             quit_action = menu.addAction("Apagar Robot")
@@ -561,6 +600,8 @@ class DesktopRobot(RobotPaintingMixin, QWidget):
                 self.forget_conversation()
             elif action == copy_action:
                 self.copy_last_answer()
+            elif action == export_action:
+                self.export_conversation()
             elif action == settings_action:
                 self._open_settings()
 
@@ -619,6 +660,23 @@ class DesktopRobot(RobotPaintingMixin, QWidget):
             self._append_message("system", "Respuesta copiada al portapapeles.")
         else:
             self._append_message("system", "Aún no hay nada que copiar, figuren.")
+
+    def export_conversation(self):
+        target, _filtro = QFileDialog.getSaveFileName(
+            self, "Exportar conversación", "conversacion.md",
+            "Markdown (*.md);;Texto (*.txt)",
+        )
+        if not target:
+            return
+        lines = [f"# Conversación con Robot Asistente (v{__version__})", ""]
+        for message in self.bubble.messages:
+            who = {"user": "**Tú**", "assistant": "**Robot**"}.get(
+                message["role"], "*(sistema)*"
+            )
+            lines.append(f"{who}: {message['text']}")
+            lines.append("")
+        Path(target).write_text("\n".join(lines), encoding="utf-8")
+        self._append_message("system", f"📤 Conversación exportada a {Path(target).name}.")
 
     # ---- Burbuja: texto y scroll ----
 
@@ -769,10 +827,26 @@ class DesktopRobot(RobotPaintingMixin, QWidget):
         if dialog.exec():
             self._apply_settings()
 
+    def _refresh_theme(self):
+        """Reaplica hojas de estilo y glow tras cambiar de skin."""
+        self.bubble.setStyleSheet(theme.CHAT_QSS())
+        self.text_input.setStyleSheet(theme.INPUT_QSS())
+        self.mic_btn.setStyleSheet(theme.MIC_QSS())
+        self.capture_btn.setStyleSheet(theme.MIC_QSS())
+        self.stop_btn.setStyleSheet(theme.STOP_QSS())
+        self.voice_btn.setStyleSheet(theme.VOICE_QSS())
+        self.close_btn.setStyleSheet(theme.CLOSE_QSS())
+        effect = self.bubble.graphicsEffect()
+        if effect is not None:
+            effect.setColor(theme.accent())
+        self.update()
+
     def _apply_settings(self):
         # Los workers en curso terminan con sus motores; los nuevos usan los nuevos.
         self.ai = AIEngine()
         self.voice = VoiceEngine()
+        theme.set_skin(str(app_settings.value("skin") or "clasico"))
+        self._refresh_theme()
         self.reduced_motion = app_settings.env("REDUCED_MOTION").lower() in ("1", "true", "yes", "on")
         log.info("Ajustes aplicados (proveedor=%s, persona=%s)", self.ai.provider, self.ai.persona)
         if self.worker is None and not self._closing:

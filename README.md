@@ -47,6 +47,12 @@ Y sí, tiene **humor ácido**: te contesta con sorna, pero siempre te da lo que 
 - 🖥️ **Integración Windows**: bandeja del sistema, instancia única, preferencias
   persistentes, multimonitor, cierre seguro y comprobador de actualizaciones.
 - 🎭 **Personalidades**: humor ácido, normal o técnico, cambiables desde ajustes.
+- 🎨 **Skins de color**: Clásico, Matrix, Neón o Solar — cambian ojos, antena, burbuja
+  y botones al instante desde ⚙ Ajustes.
+- 🎙️ **Selector de micrófono** y editor de apps permitidas en ⚙ Ajustes.
+- 📤 **Exportar conversación** a Markdown desde el menú contextual.
+- 🔄 **Auto-actualizador**: te ofrece descargar e instalar la nueva versión desde
+  la propia app (ejecutable).
 - ♿ **Movimiento reducido** disponible (`REDUCED_MOTION=1`) para pantallas sensibles.
 
 ## 📦 Instalación

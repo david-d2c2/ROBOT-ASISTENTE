@@ -1,5 +1,6 @@
 """Panel de ajustes: proveedor, claves, voz y comportamiento — sin editar .env a mano."""
 import logging
+import os
 
 from PyQt6.QtCore import QThread, pyqtSignal, Qt
 from PyQt6.QtWidgets import (
@@ -10,6 +11,7 @@ from PyQt6.QtWidgets import (
 from core import envfile
 from core.ai_engine import PERSONAS
 from core.app_settings import set_value, value
+from ui.theme import SKIN_LABELS
 
 log = logging.getLogger(__name__)
 
@@ -97,6 +99,19 @@ class SettingsDialog(QDialog):
         self.base_url_edit = QLineEdit()
         form.addRow("URL base", self.base_url_edit)
 
+        self.skin_combo = QComboBox()
+        for label, _code in SKIN_LABELS:
+            self.skin_combo.addItem(label)
+        form.addRow("Skin", self.skin_combo)
+
+        self.mic_combo = QComboBox()
+        self._populate_mics()
+        form.addRow("Micrófono", self.mic_combo)
+
+        self.apps_edit = QLineEdit()
+        self.apps_edit.setToolTip("Apps que el robot puede abrir, separadas por comas")
+        form.addRow("Apps permitidas", self.apps_edit)
+
         self.persona_combo = QComboBox()
         for label, _code in PERSONA_LABELS:
             self.persona_combo.addItem(label)
@@ -170,6 +185,14 @@ class SettingsDialog(QDialog):
             self.history_spin.setValue(int(env.get("CHAT_HISTORY_TURNS", "8")))
         except ValueError:
             self.history_spin.setValue(8)
+        skin = str(value("skin") or "clasico")
+        for index, (_label, code) in enumerate(SKIN_LABELS):
+            if code == skin:
+                self.skin_combo.setCurrentIndex(index)
+        mic_index = os.environ.get("MIC_INDEX", "").strip()
+        if mic_index.isdigit() and int(mic_index) + 1 < self.mic_combo.count():
+            self.mic_combo.setCurrentIndex(int(mic_index) + 1)
+        self.apps_edit.setText(str(value("actions/allowed_apps") or ""))
         self.tts_provider_combo.setCurrentIndex(1 if env.get("TTS_PROVIDER", "edge") == "piper" else 0)
         self.tts_edit.setText(
             env.get("PIPER_VOICE", "es_ES-davefx-medium")
@@ -200,6 +223,23 @@ class SettingsDialog(QDialog):
         self.tts_edit.setPlaceholderText(
             "es_ES-davefx-medium" if piper else "es-ES-ElviraNeural"
         )
+
+    def _populate_mics(self):
+        self.mic_combo.addItem("Predeterminado")
+        self._mic_indices: list[int] = []
+        try:
+            import pyaudio
+            pyaudio_obj = pyaudio.PyAudio()
+            try:
+                for device_index in range(pyaudio_obj.get_device_count()):
+                    info = pyaudio_obj.get_device_info_by_index(device_index)
+                    if info.get("maxInputChannels", 0) > 0:
+                        self.mic_combo.addItem(str(info.get("name", "Micrófono")))
+                        self._mic_indices.append(device_index)
+            finally:
+                pyaudio_obj.terminate()
+        except Exception:
+            pass  # sin PyAudio o sin micrófonos: solo predeterminado
 
     def _probe(self):
         if self.probe_worker is not None and self.probe_worker.isRunning():
@@ -254,11 +294,15 @@ class SettingsDialog(QDialog):
             self.status_label.setText("⚠️ Ese proveedor necesita una clave de API.")
             return
         try:
-            envfile.update_env(self._env_updates())
+            envfile.update_env({**self._env_updates(), "MIC_INDEX": env_mic})
         except OSError as exc:
             self.status_label.setText(f"❌ No se pudo guardar .env: {exc}")
             return
+        set_value("skin", SKIN_LABELS[self.skin_combo.currentIndex()][1])
         set_value("actions/enabled", self.actions_check.isChecked())
+        set_value("actions/allowed_apps", self.apps_edit.text().strip() or "calc,notepad,mspaint,explorer")
+        mic_index = self.mic_combo.currentIndex() - 1
+        env_mic = str(self._mic_indices[mic_index]) if 0 <= mic_index < len(self._mic_indices) else ""
         set_value("chat/persist", self.persist_check.isChecked())
         set_value("setup/done", True)
         super().accept()
