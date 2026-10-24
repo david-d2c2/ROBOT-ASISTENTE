@@ -31,7 +31,11 @@ Y sí, tiene **humor ácido**: te contesta con sorna, pero siempre te da lo que 
   «Probar conexión» — sin tocar un `.env` a mano.
 - 🧠 **Memoria de conversación** configurable, historial persistente opcional (SQLite)
   y botón para olvidarlo todo al instante.
-- ⚡ **Streaming**: ves la respuesta mientras se genera, en un chat con burbujas.
+- ⚡ **Streaming**: ves la respuesta mientras se genera, en un chat con burbujas, y el
+  robot **la va diciendo frase a frase** conforme llega.
+- 👂 **Manos libres**: activa "👂 Modo manos libres" en la bandeja y di "robot, abre la
+  calculadora". Palabras de activación configurables (`WAKE_WORDS`); con dictado local
+  (whisper) no tocas teclado ni ratón.
 - 📷 **Visión**: captura cualquier región de la pantalla (botón 📷) y pregúntale lo que
   quieras: "¿qué error es este?", "resume esta pantalla", "lee el gráfico". Requiere un
   proveedor multimodal (Z.AI/GLM, OpenAI o Gemini) y un modelo con visión.
