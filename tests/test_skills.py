@@ -38,6 +38,31 @@ class SkillLoadingTests(unittest.TestCase):
         with patch.object(skills, "skills_dir", return_value=self.root / "no-existe"):
             self.assertEqual(skills.load_skills(), [])
 
+    def test_frozen_uses_bundled_skills_when_no_local_folder(self):
+        empty_app = self.root / "app"
+        empty_app.mkdir()
+        bundled = self.root / "bundle"
+        (bundled / "skills").mkdir(parents=True)
+        write_skill(bundled / "skills", "demo.json", {
+            "name": "demo", "triggers": ["demo"], "response": "ok",
+        })
+        with patch("pathlib.Path.cwd", return_value=empty_app), \
+             patch.object(skills.sys, "frozen", True, create=True), \
+             patch.object(skills.sys, "_MEIPASS", str(bundled), create=True):
+            self.assertEqual(skills.skills_dir(), bundled / "skills")
+            self.assertEqual(len(skills.load_skills()), 1)
+
+    def test_frozen_prefers_local_skills_folder_next_to_exe(self):
+        (self.root / "skills").mkdir()
+        write_skill(self.root / "skills", "mio.json", {
+            "name": "mio", "triggers": ["mio"], "response": "ok",
+        })
+        with patch("pathlib.Path.cwd", return_value=self.root), \
+             patch.object(skills.sys, "frozen", True, create=True), \
+             patch.object(skills.sys, "_MEIPASS", str(self.root / "bundle"), create=True):
+            self.assertEqual(skills.skills_dir(), self.root / "skills")
+            self.assertEqual([s["name"] for s in skills.load_skills()], ["mio"])
+
 
 class SkillMatchingTests(unittest.TestCase):
     def setUp(self):

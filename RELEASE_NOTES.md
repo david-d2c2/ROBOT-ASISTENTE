@@ -5,7 +5,8 @@ Serie 3.3:
   «🧠 Olvidar lo que sabe de mí» del menú contextual.
 - 🧩 **Habilidades locales**: suelta un JSON en la carpeta `skills/` con
   disparadores y respuesta, y el robot contesta al instante sin llamar a la IA
-  (frases fijas, modos demo, atajos de personalidad).
+  (frases fijas, modos demo, atajos de personalidad). En el ejecutable, crea la
+  carpeta `skills/` junto al exe; si no existe, se usa la de ejemplo incluida.
 - 🍅 **Pomodoro**: «inicia un pomodoro de 25 minutos» y te avisa con una
   notificación al terminar.
 - 👋 **Saludo por hora**: te recibe según sea de mañana, tarde o noche.
@@ -15,4 +16,4 @@ Serie 3.3:
   la voz sugerida al motor elegido.
 - Incluye todo lo de 3.2: skins de color, manos libres, visión (📷),
   exportar conversación y auto-actualizador.
-- 125 tests automatizados.
+- 127 tests automatizados.

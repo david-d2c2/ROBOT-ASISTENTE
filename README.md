@@ -160,7 +160,7 @@ Variables extra: `PERSONA` (acido · normal · tecnico), `CHAT_HISTORY_TURNS` (m
 ## 🧪 Tests y empaquetado
 
 ```powershell
-# Tests (125) sin abrir ventanas
+# Tests (127) sin abrir ventanas
 $env:QT_QPA_PLATFORM="offscreen"
 .\.venv\Scripts\python.exe -m unittest discover -s tests -v
 

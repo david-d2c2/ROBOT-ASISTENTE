@@ -13,13 +13,18 @@ atajos de personalidad...). Formato:
 """
 import json
 import logging
+import sys
 from pathlib import Path
 
 log = logging.getLogger(__name__)
 
 
 def skills_dir() -> Path:
-    return Path.cwd() / "skills"
+    """Carpeta de habilidades: junto al exe si el usuario crea una, o la empaquetada."""
+    local = Path.cwd() / "skills"
+    if not getattr(sys, "frozen", False) or local.exists():
+        return local
+    return Path(getattr(sys, "_MEIPASS", Path.cwd())) / "skills"
 
 
 def load_skills() -> list[dict]:
