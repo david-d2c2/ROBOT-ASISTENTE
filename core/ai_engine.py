@@ -76,7 +76,7 @@ def _env_int(name, default):
 
 
 class AIEngine:
-    def __init__(self):
+    def __init__(self, memory_store=None):
         self.provider = os.getenv("AI_PROVIDER", "gemini").lower()
         self.api_key = os.getenv("GEMINI_API_KEY", "")
         self.openai_key = os.getenv("OPENAI_API_KEY", "")
@@ -100,9 +100,10 @@ class AIEngine:
         self.client = None
         self.openai_client = None
         self.zai_client = None
+        self.memory_store = memory_store
 
     def _system(self) -> str:
-        """Prompt de personalidad + instrucciones de acciones si están activadas."""
+        """Prompt de personalidad + acciones + memoria de largo plazo."""
         prompt = self.system_prompt
         try:
             if app_settings.value("actions/enabled"):
@@ -110,6 +111,16 @@ class AIEngine:
                 prompt = prompt + "\n\n" + build_prompt_instructions()
         except Exception:
             logging.getLogger(__name__).debug("No se pudieron añadir instrucciones de acciones", exc_info=True)
+        try:
+            from core.memory_store import MemoryStore
+            if self.memory_store is None:
+                self.memory_store = MemoryStore()
+            memories = self.memory_store.all(20)
+            if memories:
+                prompt = prompt + "\n\nMEMORIA DEL USUARIO (hechos que te pidió recordar):\n" + \
+                    "\n".join(f"- {item}" for item in memories)
+        except Exception:
+            logging.getLogger(__name__).debug("No se pudo cargar la memoria", exc_info=True)
         return prompt
 
     # ---- Mensajes e historial ----

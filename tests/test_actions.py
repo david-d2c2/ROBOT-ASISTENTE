@@ -61,11 +61,37 @@ class ActionExecutionTests(unittest.TestCase):
         timer.assert_called_once()
         self.assertEqual(timer.call_args.args[0], 120_000)
 
+    def test_describe_pomodoro_and_remember(self):
+        self.assertIn("pomodoro", actions.describe({"action": "pomodoro", "minutes": 25}).lower())
+        self.assertIn("café", actions.describe({"action": "remember", "text": "tomo café"}))
+
+    def test_pomodoro_schedules_notification(self):
+        timer = Mock()
+        with patch("core.actions.QTimer") as qtimer:
+            qtimer.singleShot = timer
+            ok, message = actions.execute({"action": "pomodoro", "minutes": 25}, None)
+        self.assertTrue(ok)
+        timer.assert_called_once()
+        self.assertEqual(timer.call_args.args[0], 1_500_000)
+
+    def test_remember_stores_the_fact(self):
+        store = Mock()
+        with patch("core.actions.MemoryStore", return_value=store):
+            ok, message = actions.execute({"action": "remember", "text": "tomo café"}, None)
+        self.assertTrue(ok)
+        store.add.assert_called_once_with("tomo café")
+
+    def test_rejects_empty_remember(self):
+        ok, message = actions.execute({"action": "remember", "text": "   "}, None)
+        self.assertFalse(ok)
+
     def test_prompt_instructions_include_allowlist(self):
         with patch.object(app_settings, 'value', return_value="calc,notepad"):
             instructions = actions.build_prompt_instructions()
         self.assertIn("calc, notepad", instructions)
         self.assertIn("open_app", instructions)
+        self.assertIn("pomodoro", instructions)
+        self.assertIn("remember", instructions)
 
 
 if __name__ == "__main__":

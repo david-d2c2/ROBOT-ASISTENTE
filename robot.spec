@@ -11,6 +11,7 @@ datas = [
     ("assets/sprites3d/robot-3d.png", "assets/sprites3d"),
     ("assets/sprites3d/robot-side.png", "assets/sprites3d"),
     (".env.example", "."),
+    ("skills", "skills"),
 ]
 # SpeechRecognition necesita sus utilidades FLAC para transcribir.
 datas += [(src, "speech_recognition") for src, _ in collect_data_files("speech_recognition")]

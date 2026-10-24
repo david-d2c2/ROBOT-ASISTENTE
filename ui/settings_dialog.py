@@ -218,11 +218,16 @@ class SettingsDialog(QDialog):
 
     def _tts_provider_changed(self):
         piper = self.tts_provider_combo.currentIndex() == 1
-        if piper and not self.tts_edit.text().strip():
-            self.tts_edit.setText("es_ES-davefx-medium")
-        self.tts_edit.setPlaceholderText(
-            "es_ES-davefx-medium" if piper else "es-ES-ElviraNeural"
-        )
+        text = self.tts_edit.text().strip()
+        edge_default, piper_default = "es-ES-ElviraNeural", "es_ES-davefx-medium"
+        if piper:
+            if not text or text == edge_default:
+                self.tts_edit.setText(piper_default)
+            self.tts_edit.setPlaceholderText(piper_default)
+        else:
+            if not text or text == piper_default:
+                self.tts_edit.setText(edge_default)
+            self.tts_edit.setPlaceholderText(edge_default)
 
     def _populate_mics(self):
         self.mic_combo.addItem("Predeterminado")
@@ -293,6 +298,8 @@ class SettingsDialog(QDialog):
         if key_name and not self.key_edit.text().strip():
             self.status_label.setText("⚠️ Ese proveedor necesita una clave de API.")
             return
+        mic_index = self.mic_combo.currentIndex() - 1
+        env_mic = str(self._mic_indices[mic_index]) if 0 <= mic_index < len(self._mic_indices) else ""
         try:
             envfile.update_env({**self._env_updates(), "MIC_INDEX": env_mic})
         except OSError as exc:
@@ -301,8 +308,6 @@ class SettingsDialog(QDialog):
         set_value("skin", SKIN_LABELS[self.skin_combo.currentIndex()][1])
         set_value("actions/enabled", self.actions_check.isChecked())
         set_value("actions/allowed_apps", self.apps_edit.text().strip() or "calc,notepad,mspaint,explorer")
-        mic_index = self.mic_combo.currentIndex() - 1
-        env_mic = str(self._mic_indices[mic_index]) if 0 <= mic_index < len(self._mic_indices) else ""
         set_value("chat/persist", self.persist_check.isChecked())
         set_value("setup/done", True)
         super().accept()

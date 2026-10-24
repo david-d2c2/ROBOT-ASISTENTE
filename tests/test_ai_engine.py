@@ -206,6 +206,18 @@ class AIEngineTests(unittest.TestCase):
         messages = self.openai.return_value.chat.completions.create.call_args.kwargs['messages']
         self.assertIn(ai_engine.PERSONA_TECNICO, messages[0]['content'])
 
+    def test_system_prompt_includes_long_term_memories(self):
+        store = Mock()
+        store.all.return_value = ['toma café sin azúcar']
+        engine = ai_engine.AIEngine(memory_store=store)
+        self.assertIn('toma café sin azúcar', engine._system())
+
+    def test_system_prompt_without_memories_stays_clean(self):
+        store = Mock()
+        store.all.return_value = []
+        engine = ai_engine.AIEngine(memory_store=store)
+        self.assertNotIn('MEMORIA DEL USUARIO', engine._system())
+
     def test_vision_openai_sends_image_content(self):
         os.environ.update(AI_PROVIDER='openai', OPENAI_API_KEY='test')
         self.openai.return_value.chat.completions.create.return_value = SimpleNamespace(choices=[SimpleNamespace(message=SimpleNamespace(content='Veo'))])

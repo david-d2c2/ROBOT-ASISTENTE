@@ -14,10 +14,11 @@ from pathlib import Path
 from PyQt6.QtCore import QTimer
 
 from core import app_settings
+from core.memory_store import MemoryStore
 
 log = logging.getLogger(__name__)
 
-KNOWN_ACTIONS = {"open_app", "open_url", "reminder", "note"}
+KNOWN_ACTIONS = {"open_app", "open_url", "reminder", "note", "pomodoro", "remember"}
 URL_SCHEMES = ("http://", "https://")
 
 
@@ -44,7 +45,9 @@ def build_prompt_instructions() -> str:
         '{"action": "open_app", "app": "<nombre>"} abre una app de esta lista permitida: [' + apps + "]; "
         '{"action": "open_url", "url": "<https://...>"} abre una web; '
         '{"action": "reminder", "minutes": <número>, "message": "<texto>"} crea un recordatorio; '
-        '{"action": "note", "text": "<texto>"} guarda una nota. '
+        '{"action": "note", "text": "<texto>"} guarda una nota; '
+        '{"action": "pomodoro", "minutes": <número>} inicia un pomodoro; '
+        '{"action": "remember", "text": "<texto>"} guarda de forma permanente un hecho sobre el usuario en tu memoria. '
         "Si el nombre de app no está en la lista permitida, responde con JSON de todas formas: "
         "el sistema lo denegará con seguridad. Si la petición no es una acción, responde texto normal. "
         "Nunca inventes acciones distintas de estas."
@@ -74,6 +77,12 @@ def describe(action: dict) -> str:
     if kind == "reminder":
         minutes = action.get("minutes", "?")
         return f"Crear un recordatorio en {minutes} min: «{action.get('message', '')}»"
+    if kind == "pomodoro":
+        minutes = action.get("minutes", "?")
+        return f"Iniciar un pomodoro de {minutes} min"
+    if kind == "remember":
+        return f"Guardar en tu memoria: «{str(action.get('text', ''))[:120]}»"
+
     if kind == "note":
         return f"Guardar una nota: «{str(action.get('text', ''))[:120]}»"
     return str(action)
@@ -110,6 +119,14 @@ def execute(action: dict, tray) -> tuple[bool, str]:
             )
             return True, f"⏰ Vale, te aviso en {minutes:g} min: «{message}»"
 
+        if kind == "pomodoro":
+            minutes = max(0.1, float(action.get("minutes", 25)))
+            QTimer.singleShot(
+                int(minutes * 60_000),
+                lambda: _notify(tray, "Pomodoro terminado", "Descansa 5 minutos. Te lo has ganado... más o menos."),
+            )
+            return True, f"🍅 Pomodoro de {minutes:g} min iniciado. Te aviso al acabar."
+
         if kind == "note":
             text = str(action.get("text", "")).strip()
             if not text:
@@ -119,6 +136,13 @@ def execute(action: dict, tray) -> tuple[bool, str]:
             with path.open("a", encoding="utf-8") as handle:
                 handle.write(f"[{datetime.now():%Y-%m-%d %H:%M}] {text}\n")
             return True, f"📝 Nota guardada en {path.name}."
+
+        if kind == "remember":
+            text = str(action.get("text", "")).strip()
+            if not text:
+                return False, "⛔ El recuerdo venía vacío."
+            MemoryStore().add(text)
+            return True, f"🧠 Apuntado en mi memoria: «{text[:120]}»"
     except Exception as exc:
         log.warning("Acción %s falló: %s", kind, exc)
         return False, "⛔ La acción falló al ejecutarse."

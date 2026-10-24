@@ -23,8 +23,19 @@ from core.voice_engine import VoiceEngine  # noqa: F401
 log = logging.getLogger(__name__)
 
 
+def _install_excepthook():
+    """Una excepción no capturada en un slot aborta el proceso entero (PyQt).
+    Con este hook se registra y la aplicación sigue viva."""
+
+    def hook(exc_type, exc_value, exc_tb):
+        log.critical("Excepción no capturada", exc_info=(exc_type, exc_value, exc_tb))
+
+    sys.excepthook = hook
+
+
 def main() -> int:
     configure_logging()
+    _install_excepthook()
     log.info("%s v%s arrancando", APP_NAME, __version__)
 
     lock, notified = single_instance.try_start_single_instance()

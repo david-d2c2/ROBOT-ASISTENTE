@@ -23,6 +23,8 @@ from core import actions as desktop_actions
 from core.ai_engine import AIEngine
 from core.chat_store import ChatStore
 from core.hands_free import HandsFreeLoop
+from core.memory_store import MemoryStore
+from core import skills as local_skills
 from core.single_instance import start_instance_server
 from core.version import APP_NAME, __version__
 from core.voice_engine import VoiceEngine
@@ -64,7 +66,8 @@ class DesktopRobot(RobotPaintingMixin, QWidget):
 
     def __init__(self):
         super().__init__()
-        self.ai = AIEngine()
+        self.memory_store = MemoryStore()
+        self.ai = AIEngine(memory_store=self.memory_store)
         self.voice = VoiceEngine()
         self.speech_enabled = True
         self.worker = None
@@ -103,6 +106,7 @@ class DesktopRobot(RobotPaintingMixin, QWidget):
         self.init_timers()
         self._restore_persisted_chat()
         self._restore_hands_free()
+        QTimer.singleShot(2500, self._greet_by_hour)
         self._maybe_start_setup_wizard()
         QTimer.singleShot(4000, lambda: self.check_for_updates(auto=True))
 
@@ -448,6 +452,30 @@ class DesktopRobot(RobotPaintingMixin, QWidget):
         if self._pose_switch > 0:
             self._pose_switch -= 1
 
+    def _respond_locally(self, prompt: str, skill: dict):
+        """Habilidad local: respuesta instantánea sin proveedor de IA."""
+        log.info("Habilidad local '%s' activada", skill["name"])
+        self._append_message("user", prompt)
+        self._append_message("assistant", skill["response"])
+        self.chat_store.append("user", prompt)
+        self.chat_store.append("assistant", skill["response"])
+        if skill["say"] and self.speech_enabled:
+            self._speak_quip(skill["response"])
+
+    def _greet_by_hour(self):
+        """Rutina proactiva: saludo según la hora al arrancar."""
+        if self._closing or self.worker is not None:
+            return
+        hour = time.localtime().tm_hour
+        if 6 <= hour < 13:
+            greeting = "Buenos días. Encendido y operativo... más o menos operativo."
+        elif 13 <= hour < 21:
+            greeting = "Buenas tardes. Aquí sigo, rodando por tu escritorio."
+        else:
+            greeting = "¿Aún de noche? Yo no juzgo... mucho."
+        self._append_message("assistant", greeting)
+        self._speak_quip(greeting)
+
     def _speak_quip(self, text: str):
         """Dice la frase del paseo en voz alta, en segundo plano y sin solaparse."""
         if not self.speech_enabled or self.worker is not None or self._quip_busy:
@@ -586,6 +614,7 @@ class DesktopRobot(RobotPaintingMixin, QWidget):
             else:
                 talk_action = menu.addAction("Ocultar controles")
             forget_action = menu.addAction("Olvidar conversación")
+            memoria_action = menu.addAction("🧠 Olvidar lo que sabe de mí")
             copy_action = menu.addAction("Copiar última respuesta")
             export_action = menu.addAction("📤 Exportar conversación...")
             settings_action = menu.addAction("⚙ Ajustes...")
@@ -598,6 +627,8 @@ class DesktopRobot(RobotPaintingMixin, QWidget):
                 self._toggle_controls()
             elif action == forget_action:
                 self.forget_conversation()
+            elif action == memoria_action:
+                self.forget_memories()
             elif action == copy_action:
                 self.copy_last_answer()
             elif action == export_action:
@@ -739,6 +770,11 @@ class DesktopRobot(RobotPaintingMixin, QWidget):
         self.start_worker("", use_mic=True)
 
     def start_worker(self, prompt, use_mic, image=None):
+        if not use_mic and not image:
+            skill = local_skills.match_skill(prompt)
+            if skill is not None:
+                self._respond_locally(prompt, skill)
+                return
         self._answer_received = False
         self._had_error = False
         self.state = "LISTENING" if use_mic else "THINKING"
@@ -805,6 +841,11 @@ class DesktopRobot(RobotPaintingMixin, QWidget):
             self.state = "IDLE"
             self._bubble_set_text("Memoria borrada. Como si nada hubiera pasado... justo como yo con tus preguntas raras.")
 
+    def forget_memories(self):
+        self.memory_store.clear()
+        if self.worker is None and not self._closing:
+            self._bubble_set_text("Memoria de largo plazo vaciada. Oficialmente no sé nada de ti.")
+
     # ---- Ajustes ----
 
     def _maybe_start_setup_wizard(self):
@@ -843,7 +884,7 @@ class DesktopRobot(RobotPaintingMixin, QWidget):
 
     def _apply_settings(self):
         # Los workers en curso terminan con sus motores; los nuevos usan los nuevos.
-        self.ai = AIEngine()
+        self.ai = AIEngine(memory_store=self.memory_store)
         self.voice = VoiceEngine()
         theme.set_skin(str(app_settings.value("skin") or "clasico"))
         self._refresh_theme()

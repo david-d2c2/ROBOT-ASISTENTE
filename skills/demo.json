@@ -1,0 +1,6 @@
+{
+  "name": "modo demo",
+  "triggers": ["modo demo", "demo"],
+  "response": "Habilidad local activada: esto lo respondo yo solo, sin llamar a ningún cerebro externo. Añade tus propias habilidades en la carpeta skills/.",
+  "say": false
+}

@@ -179,12 +179,14 @@ voz (Google y whisper) y estructura del lanzador.
 
 ## 10. Mejoras posteriores
 
-1. **Selección de micrófono y voz alternativa offline** (Piper) en la interfaz.
-2. **Memoria persistente opcional** en SQLite con controles de borrado.
-3. **Acciones de escritorio con permisos** (abrir apps, recordatorios) con lista
-   explícita de acciones y confirmación.
-4. **Instalador firmado** (Inno Setup) sobre el ejecutable de PyInstaller.
-5. **Métricas locales** de latencia y coste aproximado de API.
+Hecho desde 2.0: acciones de escritorio con permisos, selector de micrófono y voz
+Piper offline (3.1–3.2), y memoria de largo plazo en SQLite con borrado desde el
+menú, habilidades locales JSON en `skills/`, pomodoro y saludo por hora (3.3).
+
+Pendiente:
+
+1. **Instalador firmado** (Inno Setup) sobre el ejecutable de PyInstaller.
+2. **Métricas locales** de latencia y coste aproximado de API.
 
 ## 11. Privacidad y seguridad
 

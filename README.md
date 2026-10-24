@@ -30,7 +30,8 @@ Y sí, tiene **humor ácido**: te contesta con sorna, pero siempre te da lo que 
 - 🎛️ **Panel de ajustes con asistente inicial**: eliges proveedor, pegas tu clave y
   «Probar conexión» — sin tocar un `.env` a mano.
 - 🧠 **Memoria de conversación** configurable, historial persistente opcional (SQLite)
-  y botón para olvidarlo todo al instante.
+  y botón para olvidarlo todo al instante. Además, **memoria de largo plazo**: dile
+  «recuerda que...» y lo guardará en tu PC para futuras conversaciones.
 - ⚡ **Streaming**: ves la respuesta mientras se genera, en un chat con burbujas, y el
   robot **la va diciendo frase a frase** conforme llega.
 - 👂 **Manos libres**: activa "👂 Modo manos libres" en la bandeja y di "robot, abre la
@@ -40,7 +41,10 @@ Y sí, tiene **humor ácido**: te contesta con sorna, pero siempre te da lo que 
   quieras: "¿qué error es este?", "resume esta pantalla", "lee el gráfico". Requiere un
   proveedor multimodal (Z.AI/GLM, OpenAI o Gemini) y un modelo con visión.
 - 🛠️ **Acciones de escritorio con confirmación**: abrir apps (lista blanca), webs,
-  recordatorios con notificación y notas.
+  recordatorios con notificación, notas y **pomodoro** con aviso al terminar.
+- 🧩 **Habilidades locales**: suelta un JSON en la carpeta `skills/` con disparadores y
+  respuesta, y el robot contestará al instante sin llamar a la IA (frases fijas, modos
+  demo, atajos de personalidad).
 - 🎤 **Voz**: habla y te responde en voz alta; atajo global de dictado (Ctrl+Alt+R);
   dictado con Google o **100 % local** (faster-whisper); 🔇 para callarlo sin perder
   la respuesta.
@@ -147,6 +151,8 @@ Variables extra: `PERSONA` (acido · normal · tecnico), `CHAT_HISTORY_TURNS` (m
 
 - Sin cuentas ni telemetría: el robot habla con el proveedor de IA que **tú** configuras.
 - La conversación vive en memoria, nunca en disco; «Olvidar conversación» la borra.
+  Los recuerdos de largo plazo («recuerda que...») sí se guardan en tu PC (SQLite en
+  AppData) y «🧠 Olvidar lo que sabe de mí» los elimina al instante.
 - El micrófono solo se activa cuando lo pides; con `STT_PROVIDER=whisper` el audio
   no sale de tu equipo.
 - Tus claves viven en `.env`, que nunca se incluye en el repo ni en el ejecutable.
@@ -154,7 +160,7 @@ Variables extra: `PERSONA` (acido · normal · tecnico), `CHAT_HISTORY_TURNS` (m
 ## 🧪 Tests y empaquetado
 
 ```powershell
-# Tests (53) sin abrir ventanas
+# Tests (125) sin abrir ventanas
 $env:QT_QPA_PLATFORM="offscreen"
 .\.venv\Scripts\python.exe -m unittest discover -s tests -v
 
