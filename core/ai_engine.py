@@ -47,6 +47,27 @@ class AIError(RuntimeError):
     """Error de IA seguro para mostrar en la interfaz."""
 
 
+VISION_PROVIDERS = ("openai", "zai", "gemini")
+
+
+def _user_content(prompt: str, image: str | None):
+    """Contenido del turno del usuario; con imagen para proveedores multimodales."""
+    if not image:
+        return prompt
+    return [
+        {"type": "text", "text": prompt},
+        {"type": "image_url", "image_url": {"url": f"data:image/png;base64,{image}"}},
+    ]
+
+
+def _gemini_parts(prompt: str, image: str | None):
+    parts = []
+    if image:
+        parts.append({"inline_data": {"mime_type": "image/png", "data": image}})
+    parts.append({"text": prompt})
+    return parts
+
+
 def _env_int(name, default):
     try:
         return max(1, int(os.getenv(name, str(default))))
@@ -93,17 +114,17 @@ class AIEngine:
 
     # ---- Mensajes e historial ----
 
-    def _chat_messages(self, prompt, history):
+    def _chat_messages(self, prompt, history, image=None):
         messages = [{"role": "system", "content": self._system()}]
         for entry in (history or [])[-self.history_turns * 2:]:
             role = entry.get("role") if isinstance(entry, dict) else None
             content = entry.get("content") if isinstance(entry, dict) else None
             if role in ("user", "assistant") and isinstance(content, str) and content.strip():
                 messages.append({"role": role, "content": content})
-        messages.append({"role": "user", "content": prompt})
+        messages.append({"role": "user", "content": _user_content(prompt, image)})
         return messages
 
-    def _gemini_contents(self, prompt, history):
+    def _gemini_contents(self, prompt, history, image=None):
         contents = []
         for entry in (history or [])[-self.history_turns * 2:]:
             content = entry.get("content") if isinstance(entry, dict) else None
@@ -111,7 +132,7 @@ class AIEngine:
                 continue
             role = "model" if entry.get("role") == "assistant" else "user"
             contents.append({"role": role, "parts": [{"text": content}]})
-        contents.append({"role": "user", "parts": [{"text": prompt}]})
+        contents.append({"role": "user", "parts": _gemini_parts(prompt, image)})
         return contents
 
     def _flatten_history(self, history):
@@ -145,13 +166,18 @@ class AIEngine:
 
     # ---- Texto (sin streaming) ----
 
-    def _ask_text(self, prompt, history):
+    def _ask_text(self, prompt, history, image=None):
+        if image and self.provider not in VISION_PROVIDERS:
+            raise AIError(
+                "Este proveedor no soporta imágenes: cambia a Z.AI, OpenAI o "
+                "Gemini para usar la visión."
+            )
         if self.provider == "gemini":
             if not self.api_key.strip():
                 raise AIError("Configura GEMINI_API_KEY en el archivo .env.")
             response = self._gemini_client().models.generate_content(
                 model=self.gemini_model,
-                contents=self._gemini_contents(prompt, history),
+                contents=self._gemini_contents(prompt, history, image),
                 config=types.GenerateContentConfig(
                     system_instruction=self._system(),
                     temperature=0.7,
@@ -166,7 +192,7 @@ class AIEngine:
                 self.openai_client = self._openai_compatible_client(self.openai_key)
             response = self.openai_client.chat.completions.create(
                 model=self.openai_model,
-                messages=self._chat_messages(prompt, history),
+                messages=self._chat_messages(prompt, history, image),
                 temperature=0.7
             )
             return response.choices[0].message.content or ""
@@ -180,7 +206,7 @@ class AIEngine:
                 )
             response = self.zai_client.chat.completions.create(
                 model=self.zai_model,
-                messages=self._chat_messages(prompt, history),
+                messages=self._chat_messages(prompt, history, image),
                 temperature=0.7
             )
             return response.choices[0].message.content or ""
@@ -201,7 +227,7 @@ class AIEngine:
             headers = {"Authorization": "Bearer not-needed"}
             payload = {
                 "model": self.local_model,
-                "messages": self._chat_messages(prompt, history)
+                "messages": self._chat_messages(prompt, history, image)
             }
             res = requests.post(self.local_chat_url, json=payload, headers=headers, timeout=30)
             res.raise_for_status()
@@ -214,7 +240,12 @@ class AIEngine:
 
     # ---- Texto (streaming; los proveedores sin streaming devuelven un único bloque) ----
 
-    def _stream_chunks(self, prompt, history):
+    def _stream_chunks(self, prompt, history, image=None):
+        if image and self.provider not in VISION_PROVIDERS:
+            raise AIError(
+                "Este proveedor no soporta imágenes: cambia a Z.AI, OpenAI o "
+                "Gemini para usar la visión."
+            )
         if self.provider == "openai":
             if not self.openai_key.strip():
                 raise AIError("Configura OPENAI_API_KEY en el archivo .env.")
@@ -222,7 +253,7 @@ class AIEngine:
                 self.openai_client = self._openai_compatible_client(self.openai_key)
             stream = self.openai_client.chat.completions.create(
                 model=self.openai_model,
-                messages=self._chat_messages(prompt, history),
+                messages=self._chat_messages(prompt, history, image),
                 temperature=0.7,
                 stream=True,
             )
@@ -240,7 +271,7 @@ class AIEngine:
                 )
             stream = self.zai_client.chat.completions.create(
                 model=self.zai_model,
-                messages=self._chat_messages(prompt, history),
+                messages=self._chat_messages(prompt, history, image),
                 temperature=0.7,
                 stream=True,
             )
@@ -254,7 +285,7 @@ class AIEngine:
                 raise AIError("Configura GEMINI_API_KEY en el archivo .env.")
             stream = self._gemini_client().models.generate_content_stream(
                 model=self.gemini_model,
-                contents=self._gemini_contents(prompt, history),
+                contents=self._gemini_contents(prompt, history, image),
                 config=types.GenerateContentConfig(
                     system_instruction=self._system(),
                     temperature=0.7,
@@ -265,11 +296,11 @@ class AIEngine:
                     yield response.text
 
         else:
-            yield self._ask_text(prompt, history)
+            yield self._ask_text(prompt, history, image)
 
-    def ask(self, prompt: str, history=None) -> str:
+    def ask(self, prompt: str, history=None, image=None) -> str:
         try:
-            text = self._ask_text(prompt, history)
+            text = self._ask_text(prompt, history, image)
             if not isinstance(text, str):
                 raise AIError("El proveedor de IA no devolvió una respuesta de texto válida.")
             text = re.sub(r'\*+', '', text).strip()
@@ -289,11 +320,11 @@ class AIEngine:
         except Exception:
             raise AIError("No se pudo obtener una respuesta de IA. Revisa la conexión, la clave y el modelo configurado.") from None
 
-    def ask_stream(self, prompt: str, history=None):
+    def ask_stream(self, prompt: str, history=None, image=None):
         """Generador: entrega la respuesta en bloques a medida que llegan."""
         try:
             emitted = False
-            for chunk in self._stream_chunks(prompt, history):
+            for chunk in self._stream_chunks(prompt, history, image):
                 if not chunk:
                     continue
                 emitted = True

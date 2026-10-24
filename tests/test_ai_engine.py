@@ -206,6 +206,28 @@ class AIEngineTests(unittest.TestCase):
         messages = self.openai.return_value.chat.completions.create.call_args.kwargs['messages']
         self.assertIn(ai_engine.PERSONA_TECNICO, messages[0]['content'])
 
+    def test_vision_openai_sends_image_content(self):
+        os.environ.update(AI_PROVIDER='openai', OPENAI_API_KEY='test')
+        self.openai.return_value.chat.completions.create.return_value = SimpleNamespace(choices=[SimpleNamespace(message=SimpleNamespace(content='Veo'))])
+        ai_engine.AIEngine().ask('¿Qué ves?', image='QUJD')
+        messages = self.openai.return_value.chat.completions.create.call_args.kwargs['messages']
+        content = messages[-1]['content']
+        self.assertEqual(content[0], {'type': 'text', 'text': '¿Qué ves?'})
+        self.assertIn('data:image/png;base64,QUJD', content[1]['image_url']['url'])
+
+    def test_vision_gemini_sends_inline_data(self):
+        os.environ.update(AI_PROVIDER='gemini', GEMINI_API_KEY='test')
+        self.gemini.return_value.models.generate_content.return_value = SimpleNamespace(text='Veo')
+        ai_engine.AIEngine().ask('¿Qué ves?', image='QUJD')
+        contents = self.gemini.return_value.models.generate_content.call_args.kwargs['contents']
+        parts = contents[-1]['parts']
+        self.assertEqual(parts[0], {'inline_data': {'mime_type': 'image/png', 'data': 'QUJD'}})
+
+    def test_vision_local_provider_is_rejected_friendly(self):
+        os.environ.update(AI_PROVIDER='ollama', LOCAL_LLM_MODEL='llama3.2')
+        with self.assertRaisesRegex(RuntimeError, 'no soporta'):
+            ai_engine.AIEngine().ask('¿Qué ves?', image='QUJD')
+
     def test_dotenv_is_loaded_from_project_root(self):
         with patch('dotenv.load_dotenv') as load:
             importlib.reload(ai_engine)

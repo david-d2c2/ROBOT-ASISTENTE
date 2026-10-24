@@ -18,7 +18,8 @@ class AIWorker(QThread):
     failed = pyqtSignal(str)
 
     def __init__(self, ai: AIEngine, voice: VoiceEngine, prompt: str,
-                 use_mic: bool = False, speech_enabled: bool = True, history=None):
+                 use_mic: bool = False, speech_enabled: bool = True, history=None,
+                 image: str | None = None):
         super().__init__()
         self.ai = ai
         self.voice = voice
@@ -26,6 +27,7 @@ class AIWorker(QThread):
         self.use_mic = use_mic
         self.speech_enabled = speech_enabled
         self.history = history or []
+        self.image = image
         self.final_query = prompt
 
     def run(self):
@@ -50,12 +52,14 @@ class AIWorker(QThread):
             answer = ""
             ask_stream = getattr(self.ai, "ask_stream", None)
             if ask_stream is not None:
-                for chunk in ask_stream(query, list(self.history)):
+                for chunk in ask_stream(query, list(self.history), image=self.image):
                     if self.isInterruptionRequested():
                         return
                     answer += chunk
                     if answer.strip():
                         self.partial_ready.emit(answer)
+            elif self.image:
+                answer = self.ai.ask(query, image=self.image)
             else:
                 answer = self.ai.ask(query)
             if self.isInterruptionRequested():

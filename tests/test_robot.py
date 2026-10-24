@@ -8,7 +8,7 @@ os.environ['QT_QPA_PLATFORM'] = 'offscreen'
 os.environ['PYGAME_HIDE_SUPPORT_PROMPT'] = '1'
 
 from PyQt6.QtCore import Qt, QPointF, QSettings, QTimer
-from PyQt6.QtGui import QCloseEvent, QImage, QMouseEvent
+from PyQt6.QtGui import QCloseEvent, QImage, QMouseEvent, QPixmap
 from PyQt6.QtWidgets import QApplication
 
 with patch('dotenv.load_dotenv'):
@@ -21,9 +21,11 @@ class FakeAI:
         self.release = threading.Event()
         self.entered = threading.Event()
         self.calls = []
+        self.images = []
 
-    def ask(self, prompt):
+    def ask(self, prompt, image=None):
         self.calls.append(prompt)
+        self.images.append(image)
         self.entered.set()
         if not self.release.wait(3):
             raise TimeoutError('test deadline')
@@ -226,7 +228,7 @@ class RobotTests(unittest.TestCase):
         self.assertEqual(self.robot.history, [])
 
     def test_streaming_updates_bubble_and_history(self):
-        def ask_stream(prompt, history=None):
+        def ask_stream(prompt, history=None, image=None):
             self.ai.entered.set()
             yield 'Hola '
             yield 'mundo'
@@ -369,6 +371,20 @@ class RobotTests(unittest.TestCase):
             time.sleep(0.01)
         self.assertEqual(spoken, [])
         self.assertIsNotNone(self.robot._solo_text, 'la frase se muestra aunque esté mudo')
+
+    def test_vision_capture_reaches_the_ai_with_the_prompt(self):
+        self.robot.show()
+        pixmap = QPixmap(20, 20)
+        pixmap.fill(Qt.GlobalColor.cyan)
+        self.robot._on_region_captured(pixmap)
+        pending = self.robot._pending_image
+        self.assertTrue(pending and len(pending) > 100)
+        self.robot.text_input.setText('¿Qué ves?')
+        self.robot.send_text()
+        self.assertTrue(self.ai.entered.wait(1))
+        self.assertEqual(self.ai.images, [pending])
+        self.assertEqual(self.ai.calls, ['¿Qué ves?'])
+        self.ai.release.set()
 
     def test_side_sprite_is_loaded_and_mirrors_left(self):
         self.robot.show()

@@ -1,4 +1,5 @@
 """Ventana del robot: estados, interacción, bandeja y ciclo de vida."""
+import base64
 import html
 import logging
 import math
@@ -26,6 +27,7 @@ from core.version import APP_NAME, __version__
 from core.voice_engine import VoiceEngine
 from core.worker import AIWorker
 from ui import theme
+from ui.capture_overlay import CaptureOverlay
 from ui.painters import RobotPaintingMixin
 from ui.settings_dialog import SettingsDialog
 
@@ -70,6 +72,8 @@ class DesktopRobot(RobotPaintingMixin, QWidget):
         self.chat_messages: list[dict] = []
         self._status_text: str | None = None
         self._solo_text: str | None = None
+        self._pending_image: str | None = None
+        self._capture_overlay = None
         self.chat_store = ChatStore()
 
         # Paseo: de perfil, con paradas para mirar de frente.
@@ -155,6 +159,13 @@ class DesktopRobot(RobotPaintingMixin, QWidget):
         self.mic_btn.setStyleSheet(theme.MIC_QSS)
         self.mic_btn.clicked.connect(self.start_listening)
 
+        self.capture_btn = QPushButton("📷")
+        self.capture_btn.setFixedSize(34, 28)
+        self.capture_btn.setToolTip("Capturar una zona de la pantalla y preguntarle al robot")
+        self.capture_btn.setAccessibleName("Capturar pantalla")
+        self.capture_btn.setStyleSheet(theme.MIC_QSS)
+        self.capture_btn.clicked.connect(self.start_capture)
+
         self.stop_btn = QPushButton("⏹")
         self.stop_btn.setFixedSize(34, 28)
         self.stop_btn.setToolTip("Detener la consulta en curso")
@@ -183,6 +194,7 @@ class DesktopRobot(RobotPaintingMixin, QWidget):
         self.close_btn.setAccessibleName("Ocultar o apagar el robot")
 
         input_layout.addWidget(self.text_input)
+        input_layout.addWidget(self.capture_btn)
         input_layout.addWidget(self.mic_btn)
         input_layout.addWidget(self.stop_btn)
         input_layout.addWidget(self.voice_btn)
@@ -639,29 +651,65 @@ class DesktopRobot(RobotPaintingMixin, QWidget):
 
     def send_text(self):
         prompt = self.text_input.text().strip()
-        if not prompt or self.worker is not None or self._closing:
+        if self.worker is not None or self._closing:
+            return
+        image = self._pending_image
+        if not prompt and not image:
             return
         self.text_input.clear()
-        self.start_worker(prompt, use_mic=False)
+        self._pending_image = None
+        if not prompt:
+            prompt = "Analiza esta captura: ¿qué ves y qué destacarías?"
+        self.start_worker(prompt, use_mic=False, image=image)
+
+    # ---- Visión: captura de pantalla ----
+
+    def start_capture(self):
+        if self.worker is not None or self._closing or self._capture_overlay is not None:
+            return
+        log.info("Iniciando captura de pantalla")
+        self._capture_overlay = CaptureOverlay.start_capture(
+            self._on_region_captured, self._on_capture_cancelled
+        )
+
+    def _on_capture_cancelled(self):
+        self._capture_overlay = None
+        self._append_message("system", "Captura cancelada.")
+
+    def _on_region_captured(self, pixmap):
+        self._capture_overlay = None
+        from PyQt6.QtCore import QBuffer, QIODevice
+        buffer = QBuffer()
+        buffer.open(QIODevice.OpenModeFlag.WriteOnly)
+        pixmap.save(buffer, "PNG")
+        self._pending_image = base64.b64encode(bytes(buffer.data())).decode("ascii")
+        log.info("Captura lista (%d KB)", len(self._pending_image) // 1024)
+        if self.input_container.isHidden():
+            self._toggle_controls()
+        else:
+            self.text_input.setFocus()
+        self._append_message(
+            "system", "📸 Captura lista. Escribe qué quieres saber de ella y pulsa Enter."
+        )
 
     def start_listening(self):
         if self.worker is not None or self._closing:
             return
         self.start_worker("", use_mic=True)
 
-    def start_worker(self, prompt, use_mic):
+    def start_worker(self, prompt, use_mic, image=None):
         self._answer_received = False
         self._had_error = False
         self.state = "LISTENING" if use_mic else "THINKING"
         self._status_text = "🎤 Habla ahora..." if use_mic else "Pensando..."
         if not use_mic:
-            self._append_message("user", prompt)
+            self._append_message("user", ("📸 " if image else "") + prompt)
         self._render_chat()
         self._set_busy(True)
         self.anchor_to_ground()
         self.worker = AIWorker(
             self.ai, self.voice, prompt, use_mic, self.speech_enabled,
-            history=list(self.history),
+            history=list(self.history), image=image,
         )
         self.worker.status_update.connect(self.on_status_update)
         self.worker.query_ready.connect(self.on_query_ready)

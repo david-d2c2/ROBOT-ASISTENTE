@@ -32,6 +32,9 @@ Y sí, tiene **humor ácido**: te contesta con sorna, pero siempre te da lo que 
 - 🧠 **Memoria de conversación** configurable, historial persistente opcional (SQLite)
   y botón para olvidarlo todo al instante.
 - ⚡ **Streaming**: ves la respuesta mientras se genera, en un chat con burbujas.
+- 📷 **Visión**: captura cualquier región de la pantalla (botón 📷) y pregúntale lo que
+  quieras: "¿qué error es este?", "resume esta pantalla", "lee el gráfico". Requiere un
+  proveedor multimodal (Z.AI/GLM, OpenAI o Gemini) y un modelo con visión.
 - 🛠️ **Acciones de escritorio con confirmación**: abrir apps (lista blanca), webs,
   recordatorios con notificación y notas.
 - 🎤 **Voz**: habla y te responde en voz alta; atajo global de dictado (Ctrl+Alt+R);
