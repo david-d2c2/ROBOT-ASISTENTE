@@ -95,8 +95,12 @@ Variables extra: `PERSONA` (acido · normal · tecnico), `CHAT_HISTORY_TURNS` (m
 
 ## 🗣️ Voz y dictado
 
-- **Respuestas habladas** con Edge TTS (necesita Internet): `TTS_VOICE`, `TTS_RATE`,
-  `TTS_PITCH` configurables.
+- **Respuestas habladas** con dos motores:
+  - **Edge TTS** (Internet, por defecto): `TTS_VOICE`, `TTS_RATE`, `TTS_PITCH`.
+  - **Piper local, sin conexión**: `TTS_PROVIDER=piper` y
+    `pip install -r requirements-tts.txt`. La voz `es_ES-davefx-medium` se
+    descarga sola la primera vez (~65 MB) y luego funciona offline. Cambiable
+    desde ⚙ Ajustes.
 - **Dictado**: Google por defecto, o **100 % local** con
   [faster-whisper](https://github.com/SYSTRAN/faster-whisper):
 

@@ -107,8 +107,15 @@ class SettingsDialog(QDialog):
         self.history_spin.setToolTip("Turnos (pregunta+respuesta) que el robot recuerda")
         form.addRow("Memoria (turnos)", self.history_spin)
 
+        self.tts_provider_combo = QComboBox()
+        self.tts_provider_combo.addItem("Edge TTS (Internet)")
+        self.tts_provider_combo.addItem("Piper local (sin conexión)")
+        self.tts_provider_combo.currentIndexChanged.connect(self._tts_provider_changed)
+        form.addRow("Motor de voz", self.tts_provider_combo)
+
         self.tts_edit = QLineEdit()
-        form.addRow("Voz TTS", self.tts_edit)
+        self.tts_edit.setToolTip("Edge: nombre de voz. Piper: idioma_PAIS-locutor-calidad")
+        form.addRow("Voz", self.tts_edit)
 
         self.stt_combo = QComboBox()
         self.stt_combo.addItem("Google (Internet)")
@@ -163,7 +170,13 @@ class SettingsDialog(QDialog):
             self.history_spin.setValue(int(env.get("CHAT_HISTORY_TURNS", "8")))
         except ValueError:
             self.history_spin.setValue(8)
-        self.tts_edit.setText(env.get("TTS_VOICE", "es-ES-ElviraNeural"))
+        self.tts_provider_combo.setCurrentIndex(1 if env.get("TTS_PROVIDER", "edge") == "piper" else 0)
+        self.tts_edit.setText(
+            env.get("PIPER_VOICE", "es_ES-davefx-medium")
+            if self.tts_provider_combo.currentIndex() == 1
+            else env.get("TTS_VOICE", "es-ES-ElviraNeural")
+        )
+        self._tts_provider_changed()
         self.stt_combo.setCurrentIndex(1 if env.get("STT_PROVIDER", "google") == "whisper" else 0)
         self.actions_check.setChecked(bool(value("actions/enabled")))
         self.persist_check.setChecked(bool(value("chat/persist")))
@@ -179,6 +192,14 @@ class SettingsDialog(QDialog):
         return PROVIDERS[self.provider_combo.currentIndex()]
 
     # ---- Prueba de conexión ----
+
+    def _tts_provider_changed(self):
+        piper = self.tts_provider_combo.currentIndex() == 1
+        if piper and not self.tts_edit.text().strip():
+            self.tts_edit.setText("es_ES-davefx-medium")
+        self.tts_edit.setPlaceholderText(
+            "es_ES-davefx-medium" if piper else "es-ES-ElviraNeural"
+        )
 
     def _probe(self):
         if self.probe_worker is not None and self.probe_worker.isRunning():
@@ -203,9 +224,14 @@ class SettingsDialog(QDialog):
             "AI_PROVIDER": code,
             "PERSONA": PERSONA_LABELS[self.persona_combo.currentIndex()][1],
             "CHAT_HISTORY_TURNS": str(self.history_spin.value()),
-            "TTS_VOICE": self.tts_edit.text().strip() or "es-ES-ElviraNeural",
+            "TTS_PROVIDER": "piper" if self.tts_provider_combo.currentIndex() == 1 else "edge",
             "STT_PROVIDER": "whisper" if self.stt_combo.currentIndex() == 1 else "google",
         }
+        voice_value = self.tts_edit.text().strip()
+        if self.tts_provider_combo.currentIndex() == 1:
+            updates["PIPER_VOICE"] = voice_value or "es_ES-davefx-medium"
+        else:
+            updates["TTS_VOICE"] = voice_value or "es-ES-ElviraNeural"
         for _l, provider_code, provider_key, _m, _b in PROVIDERS:
             if provider_key:
                 updates[provider_key] = ""

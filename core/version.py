@@ -1,6 +1,6 @@
 """Identidad y versión de la aplicación en un único sitio."""
 
-__version__ = "2.1.2"
+__version__ = "2.2.0"
 
 APP_NAME = "Robot Asistente"
 ORG_NAME = "RobotAsistente"

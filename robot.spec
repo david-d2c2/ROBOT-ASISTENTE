@@ -20,7 +20,7 @@ a = Analysis(
     pathex=[os.path.abspath(".")],
     binaries=[],
     datas=datas,
-    hiddenimports=["PyQt6.QtSvg", "speech_recognition", "edge_tts", "pygame"],
+    hiddenimports=["PyQt6.QtSvg", "speech_recognition", "edge_tts", "pygame", "piper"],
     excludes=["tkinter"],
     noarchive=False,
 )

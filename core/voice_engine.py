@@ -1,13 +1,21 @@
 import asyncio
+import logging
 import tempfile
 import os
 import re
 import threading
+import wave
+from pathlib import Path
+
 import edge_tts
 import pygame
+import requests
 import speech_recognition as sr
 
+log = logging.getLogger(__name__)
+
 GOOGLE_STT_ENDPOINT = "https://www.google.com/speech-api/v2/recognize"
+PIPER_VOICES_URL = "https://huggingface.co/rhasspy/piper-voices/resolve/v1.0.0/{locale_dir}/{locale}/{speaker}/{quality}/{name}.onnx"
 
 
 def _env(name, default):
@@ -15,10 +23,20 @@ def _env(name, default):
     return value or default
 
 
+def _piper_dir() -> Path:
+    base = os.getenv("PIPER_MODEL_DIR", "").strip()
+    if base:
+        return Path(base)
+    appdata = os.getenv("APPDATA") or str(Path.home() / "AppData" / "Roaming")
+    return Path(appdata) / "RobotAsistente" / "voices"
+
+
 class VoiceEngine:
     def __init__(self):
         self._stopped = threading.Event()
+        self.tts_provider = _env("TTS_PROVIDER", "edge").lower()
         self.voice = _env("TTS_VOICE", "es-ES-ElviraNeural")
+        self.piper_voice = _env("PIPER_VOICE", "es_ES-davefx-medium")
         self.pitch = _env("TTS_PITCH", "+18Hz")
         self.rate = _env("TTS_RATE", "+8%")
         self.stt_provider = _env("STT_PROVIDER", "google").lower()
@@ -28,6 +46,8 @@ class VoiceEngine:
         self.whisper_compute = _env("WHISPER_COMPUTE", "int8")
         self._whisper = None
         self._whisper_lock = threading.Lock()
+        self._piper = None
+        self._piper_lock = threading.Lock()
 
     def clean_text_for_speech(self, text: str) -> str:
         """Elimina asteriscos, símbolos Markdown y emojis antes de hablar."""
@@ -62,12 +82,18 @@ class VoiceEngine:
         except Exception as exc:
             raise RuntimeError("No se pudo abrir la salida de audio. Revisa tus altavoces.") from exc
 
-        with tempfile.NamedTemporaryFile(delete=False, suffix=".mp3") as tmp:
+        suffix = ".wav" if self.tts_provider == "piper" else ".mp3"
+        with tempfile.NamedTemporaryFile(delete=False, suffix=suffix) as tmp:
             tmp_path = tmp.name
 
         try:
             try:
-                asyncio.run(self._generate_audio(speech_text, tmp_path))
+                if self.tts_provider == "piper":
+                    self._generate_piper(speech_text, tmp_path)
+                else:
+                    asyncio.run(self._generate_audio(speech_text, tmp_path))
+            except RuntimeError:
+                raise
             except Exception as exc:
                 raise RuntimeError("No se pudo generar la voz. Revisa la conexión e inténtalo de nuevo.") from exc
             if cancelled():
@@ -157,3 +183,76 @@ class VoiceEngine:
         finally:
             if wav_path and os.path.exists(wav_path):
                 os.remove(wav_path)
+
+    # ---- TTS local con Piper (sin Internet) ----
+
+    def _piper_model_path(self) -> Path:
+        return _piper_dir() / f"{self.piper_voice}.onnx"
+
+    def _ensure_piper_model(self) -> Path:
+        """Devuelve el .onnx del modelo, descargándolo de HuggingFace si falta."""
+        path = self._piper_model_path()
+        config = path.with_suffix(".onnx.json")
+        if path.exists() and config.exists():
+            return path
+
+        parts = self.piper_voice.split("-")
+        if len(parts) < 3:
+            raise RuntimeError(
+                "PIPER_VOICE debe tener el formato idioma_PAIS-locutor-calidad "
+                "(por ejemplo es_ES-davefx-medium)."
+            )
+        locale, speaker, quality = parts[0], parts[1], parts[2]
+        lang = locale.split("_")[0]
+        url = PIPER_VOICES_URL.format(
+            locale_dir=lang, locale=locale, speaker=speaker, quality=quality, name=self.piper_voice
+        )
+        path.parent.mkdir(parents=True, exist_ok=True)
+        log.info("Descargando voz local %s (solo la primera vez)...", self.piper_voice)
+        try:
+            for suffix in ("", ".json"):
+                target = Path(str(path) + suffix)
+                response = requests.get(url + suffix, stream=True, timeout=120)
+                response.raise_for_status()
+                with target.open("wb") as handle:
+                    for chunk in response.iter_content(chunk_size=1 << 20):
+                        handle.write(chunk)
+        except requests.RequestException as exc:
+            log.warning("Descarga de voz Piper fallida: %s", exc)
+            raise RuntimeError(
+                "No se pudo descargar la voz local. Revisa la conexión o descárgala a mano: "
+                f"{url} y {url}.json → {_piper_dir()}"
+            ) from exc
+        log.info("Voz local lista")
+        return path
+
+    def _generate_piper(self, text: str, output_file: str):
+        try:
+            from piper import PiperVoice  # se importa tarde: dependencia opcional
+        except ImportError as exc:
+            raise RuntimeError(
+                "Para hablar sin conexión instala el paquete opcional: "
+                "pip install -r requirements-tts.txt"
+            ) from exc
+
+        with self._piper_lock:
+            if self._piper is None:
+                model_path = self._ensure_piper_model()
+                log.info("Cargando voz local Piper...")
+                self._piper = PiperVoice.load(str(model_path))
+
+        with wave.open(output_file, "wb") as wav_file:
+            wav_file.setnchannels(1)
+            wav_file.setsampwidth(2)
+            try:
+                wav_file.setframerate(int(self._piper.config.sample_rate))
+            except (AttributeError, TypeError, ValueError):
+                wav_file.setframerate(22050)
+            try:
+                synth_wav = getattr(self._piper, "synthesize_wav", None)
+                if synth_wav is not None:
+                    synth_wav(text, wav_file)
+                else:
+                    self._piper.synthesize(text, wav_file=wav_file)
+            except Exception as exc:
+                raise RuntimeError("El motor de voz local falló al sintetizar.") from exc
