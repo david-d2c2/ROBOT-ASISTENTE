@@ -190,39 +190,32 @@ class VoiceEngine:
         return _piper_dir() / f"{self.piper_voice}.onnx"
 
     def _ensure_piper_model(self) -> Path:
-        """Devuelve el .onnx del modelo, descargándolo de HuggingFace si falta."""
+        """Devuelve el .onnx del modelo, descargándolo con el descargador oficial
+        de Piper (URL y formato según la versión instalada) si falta."""
         path = self._piper_model_path()
-        config = path.with_suffix(".onnx.json")
-        if path.exists() and config.exists():
+        if path.exists():
             return path
 
-        parts = self.piper_voice.split("-")
-        if len(parts) < 3:
-            raise RuntimeError(
-                "PIPER_VOICE debe tener el formato idioma_PAIS-locutor-calidad "
-                "(por ejemplo es_ES-davefx-medium)."
-            )
-        locale, speaker, quality = parts[0], parts[1], parts[2]
-        lang = locale.split("_")[0]
-        url = PIPER_VOICES_URL.format(
-            locale_dir=lang, locale=locale, speaker=speaker, quality=quality, name=self.piper_voice
-        )
-        path.parent.mkdir(parents=True, exist_ok=True)
+        download_dir = path.parent
+        download_dir.mkdir(parents=True, exist_ok=True)
         log.info("Descargando voz local %s (solo la primera vez)...", self.piper_voice)
         try:
-            for suffix in ("", ".json"):
-                target = Path(str(path) + suffix)
-                response = requests.get(url + suffix, stream=True, timeout=120)
-                response.raise_for_status()
-                with target.open("wb") as handle:
-                    for chunk in response.iter_content(chunk_size=1 << 20):
-                        handle.write(chunk)
-        except requests.RequestException as exc:
+            from piper.download_voices import download_voice
+            download_voice(self.piper_voice, download_dir)
+        except ImportError as exc:
+            raise RuntimeError(
+                "Para hablar sin conexión instala el paquete opcional: "
+                "pip install -r requirements-tts.txt"
+            ) from exc
+        except Exception as exc:
             log.warning("Descarga de voz Piper fallida: %s", exc)
             raise RuntimeError(
-                "No se pudo descargar la voz local. Revisa la conexión o descárgala a mano: "
-                f"{url} y {url}.json → {_piper_dir()}"
+                "No se pudo descargar la voz local. Prueba a mano: "
+                f"python -m piper.download_voices {self.piper_voice} "
+                f'--download-dir "{download_dir}"'
             ) from exc
+        if not path.exists():
+            raise RuntimeError("La descarga terminó pero no aparece el modelo esperado.")
         log.info("Voz local lista")
         return path
 

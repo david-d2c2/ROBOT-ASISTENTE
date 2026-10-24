@@ -55,14 +55,21 @@ class PiperTTSTests(unittest.TestCase):
         self.assertEqual(self._wav_files(), [], "el wav temporal se limpia")
 
     def test_piper_downloads_model_on_first_use(self):
-        fake_response = Mock()
-        fake_response.iter_content.return_value = iter([b"datos"])
+        # La descarga la hace el descargador oficial de Piper (URL correcta
+        # según la versión instalada), no una URL artesanal.
+        fake_downloader = Mock()
+        fake_downloader.download_voice.side_effect = lambda voice, download_dir, **kw: (
+            (download_dir / "es_ES-davefx-medium.onnx").write_bytes(b"modelo"),
+            (download_dir / "es_ES-davefx-medium.onnx.json").write_text("{}", encoding="utf-8"),
+        )
         env = {"TTS_PROVIDER": "piper", "PIPER_MODEL_DIR": str(self.model_dir)}
-        with patch.dict(os.environ, env), patch.dict(sys.modules, {"piper": self.fake_module}):
-            with patch('core.voice_engine.requests.get', return_value=fake_response) as get:
-                VoiceEngine().speak("Hola")
-        self.assertEqual(get.call_count, 2)  # .onnx + .json
-        self.assertIn("davefx/medium", get.call_args_list[0].args[0])
+        with patch.dict(os.environ, env), patch.dict(
+            sys.modules,
+            {"piper": self.fake_module, "piper.download_voices": fake_downloader},
+        ):
+            VoiceEngine().speak("Hola")
+        fake_downloader.download_voice.assert_called_once()
+        self.assertEqual(fake_downloader.download_voice.call_args.args[0], "es_ES-davefx-medium")
         self.assertTrue((self.model_dir / "es_ES-davefx-medium.onnx").exists())
 
     def test_piper_missing_package_is_friendly(self):
