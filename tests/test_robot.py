@@ -386,6 +386,54 @@ class RobotTests(unittest.TestCase):
         self.assertEqual(self.ai.calls, ['¿Qué ves?'])
         self.ai.release.set()
 
+    def test_streaming_speaks_sentences_as_they_arrive(self):
+        def ask_stream(prompt, history=None, image=None):
+            self.ai.entered.set()
+            yield 'Hola. '
+            yield '¿Qué tal? '
+            yield 'Adiós.'
+
+        spoken = []
+        self.ai.ask_stream = ask_stream
+        self.voice.speak = lambda text, should_stop=None: spoken.append(text)
+        self.send()
+        self.assertTrue(self.ai.entered.wait(1))
+        deadline = time.monotonic() + 2
+        while len(spoken) < 3 and time.monotonic() < deadline:
+            self.app.processEvents()
+            time.sleep(0.01)
+        self.assertEqual(spoken, ['Hola.', '¿Qué tal?', 'Adiós.'])
+        self.ai.release.set()
+
+    def test_extract_command_wake_words(self):
+        from core.hands_free import extract_command
+        self.assertEqual(extract_command('robot abre la calculadora'), 'abre la calculadora')
+        self.assertEqual(extract_command('¡Oye robot, qué tal!'), 'qué tal')
+        self.assertEqual(extract_command('Oye'), '')
+        self.assertIsNone(extract_command('buenos días'))
+        self.assertEqual(
+            extract_command('robot qué tal', words=('robot',)),
+            'qué tal',
+        )
+
+    def test_hands_free_toggle_starts_and_stops_loop(self):
+        with patch.object(robot_window, 'HandsFreeLoop') as factory:
+            loop = factory.return_value
+            self.robot.show()
+            self.robot.hands_free_action.setChecked(True)
+            factory.assert_called_once_with(self.robot.voice)
+            loop.start.assert_called_once()
+            self.robot.hands_free_action.setChecked(False)
+            loop.stop.assert_called_once()
+            self.assertIsNone(self.robot.hands_free_loop)
+
+    def test_hands_free_command_starts_worker(self):
+        self.robot.show()
+        self.robot._on_hands_free_command('abre la calculadora')
+        self.assertTrue(self.ai.entered.wait(1))
+        self.assertEqual(self.ai.calls, ['abre la calculadora'])
+        self.ai.release.set()
+
     def test_side_sprite_is_loaded_and_mirrors_left(self):
         self.robot.show()
         self.robot.state = 'MOVING'

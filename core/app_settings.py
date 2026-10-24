@@ -16,6 +16,7 @@ DEFAULTS = {
     "actions/always_allow": "",
     "updates/last_check": "",
     "setup/done": False,
+    "hands_free": False,
 }
 
 
