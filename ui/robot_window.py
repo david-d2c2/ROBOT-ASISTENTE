@@ -615,6 +615,7 @@ class DesktopRobot(RobotPaintingMixin, QWidget):
                 talk_action = menu.addAction("Ocultar controles")
             forget_action = menu.addAction("Olvidar conversación")
             memoria_action = menu.addAction("🧠 Olvidar lo que sabe de mí")
+            ver_memoria_action = menu.addAction("🧠 Ver lo que sabe de mí")
             copy_action = menu.addAction("Copiar última respuesta")
             export_action = menu.addAction("📤 Exportar conversación...")
             settings_action = menu.addAction("⚙ Ajustes...")
@@ -629,6 +630,8 @@ class DesktopRobot(RobotPaintingMixin, QWidget):
                 self.forget_conversation()
             elif action == memoria_action:
                 self.forget_memories()
+            elif action == ver_memoria_action:
+                self.show_memories()
             elif action == copy_action:
                 self.copy_last_answer()
             elif action == export_action:
@@ -845,6 +848,15 @@ class DesktopRobot(RobotPaintingMixin, QWidget):
         self.memory_store.clear()
         if self.worker is None and not self._closing:
             self._bubble_set_text("Memoria de largo plazo vaciada. Oficialmente no sé nada de ti.")
+
+    def show_memories(self):
+        """Muestra en el chat la lista de recuerdos de largo plazo."""
+        recuerdos = self.memory_store.all()
+        if not recuerdos:
+            self._append_message("assistant", "No me has pedido recordar nada todavía. Dime «recuerda que...» y lo apunto.")
+            return
+        lista = "\n".join(f"- {recuerdo}" for recuerdo in recuerdos)
+        self._append_message("assistant", "Esto es lo que me pediste recordar:\n" + lista)
 
     # ---- Ajustes ----
 

@@ -76,6 +76,28 @@ class MemoryStore:
         finally:
             connection.close()
 
+    def remove(self, query: str) -> int:
+        """Borra los recuerdos que coincidan exactamente o contengan la
+        consulta. Devuelve cuántos se han borrado."""
+        query = (query or "").strip()
+        if not query:
+            return 0
+        connection = self._connect()
+        if connection is None:
+            return 0
+        try:
+            cursor = connection.execute(
+                "DELETE FROM memories WHERE content = ? OR content LIKE ?",
+                (query, f"%{query}%"),
+            )
+            connection.commit()
+            return cursor.rowcount
+        except sqlite3.Error:
+            log.exception("No se pudo olvidar el recuerdo")
+            return 0
+        finally:
+            connection.close()
+
     def clear(self):
         connection = self._connect()
         if connection is not None:

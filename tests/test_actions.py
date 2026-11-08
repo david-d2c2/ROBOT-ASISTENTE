@@ -116,6 +116,26 @@ class ActionExecutionTests(unittest.TestCase):
         ok, message = actions.execute({"action": "remember", "text": "   "}, None)
         self.assertFalse(ok)
 
+    def test_describe_forget(self):
+        self.assertIn("Olvidar", actions.describe({"action": "forget", "text": "mi cumpleaños"}))
+
+    def test_forget_removes_matching_memories(self):
+        store = Mock()
+        store.remove.return_value = 2
+        with patch("core.actions.MemoryStore", return_value=store):
+            ok, message = actions.execute({"action": "forget", "text": "café"}, None)
+        self.assertTrue(ok)
+        store.remove.assert_called_once_with("café")
+        self.assertIn("Olvidado", message)
+
+    def test_forget_reports_when_nothing_matched(self):
+        store = Mock()
+        store.remove.return_value = 0
+        with patch("core.actions.MemoryStore", return_value=store):
+            ok, message = actions.execute({"action": "forget", "text": "perro"}, None)
+        self.assertTrue(ok)
+        self.assertIn("No tenía", message)
+
     def test_prompt_instructions_include_allowlist(self):
         with patch.object(app_settings, 'value', return_value="calc,notepad"):
             instructions = actions.build_prompt_instructions()

@@ -198,5 +198,54 @@ class VoiceEngineTests(unittest.TestCase):
         self.assertIn('requirements-whisper', message)
 
 
+class MicSelectionTests(unittest.TestCase):
+    """El micrófono se elige por nombre (MIC_NAME); el índice es un respaldo
+    porque el orden de dispositivos cambia al reiniciar o reconectar."""
+
+    def setUp(self):
+        self.mixer_patch = patch('core.voice_engine.pygame.mixer')
+        self.mixer = self.mixer_patch.start()
+        self.addCleanup(self.mixer_patch.stop)
+        self.mixer.get_init.return_value = None
+        self.engine = VoiceEngine()
+
+    def test_matches_device_by_name(self):
+        devices = {
+            0: {"name": "Tarjeta sin entrada", "maxInputChannels": 0},
+            1: {"name": "Micrófono USB", "maxInputChannels": 2},
+        }
+        fake_pyaudio = SimpleNamespace(
+            PyAudio=lambda: SimpleNamespace(
+                get_device_count=lambda: 2,
+                get_device_info_by_index=devices.__getitem__,
+                terminate=lambda: None,
+            )
+        )
+        self.engine.mic_name = "Micrófono USB"
+        self.engine.mic_index = 7  # índice obsoleto de otro arranque
+        with patch.dict(sys.modules, {"pyaudio": fake_pyaudio}):
+            self.assertEqual(self.engine._resolved_mic_index(), 1)
+
+    def test_falls_back_to_stored_index_when_name_not_found(self):
+        fake_pyaudio = SimpleNamespace(
+            PyAudio=lambda: SimpleNamespace(
+                get_device_count=lambda: 0,
+                get_device_info_by_index=lambda i: {"name": "?", "maxInputChannels": 0},
+                terminate=lambda: None,
+            )
+        )
+        self.engine.mic_name = "Desaparecido"
+        self.engine.mic_index = 3
+        with patch.dict(sys.modules, {"pyaudio": fake_pyaudio}):
+            self.assertEqual(self.engine._resolved_mic_index(), 3)
+
+    def test_without_name_uses_stored_index_or_default(self):
+        self.engine.mic_name = ""
+        self.engine.mic_index = 2
+        self.assertEqual(self.engine._resolved_mic_index(), 2)
+        self.engine.mic_index = None
+        self.assertIsNone(self.engine._resolved_mic_index())
+
+
 if __name__ == '__main__':
     unittest.main()

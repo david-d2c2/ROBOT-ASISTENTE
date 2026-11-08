@@ -47,6 +47,18 @@ class MemoryStoreTests(unittest.TestCase):
         self.store.add("tiene un gato")
         self.assertEqual(self.store.all(), ["tiene un gato"])
 
+    def test_remove_deletes_exact_and_substring_matches(self):
+        self.store.add("le gusta el café solo")
+        self.store.add("tiene un gato")
+        self.assertEqual(self.store.remove("café"), 1)
+        self.assertEqual(self.store.all(), ["tiene un gato"])
+
+    def test_remove_returns_zero_when_nothing_matches(self):
+        self.store.add("tiene un gato")
+        self.assertEqual(self.store.remove("perro"), 0)
+        self.assertEqual(self.store.remove("   "), 0)
+        self.assertEqual(self.store.all(), ["tiene un gato"])
+
     def test_usable_from_threads_other_than_the_creator(self):
         # Reproduce el fallo real: guardar desde el hilo principal (acción
         # remember) y leer desde el hilo del AIWorker (inyección en prompt).

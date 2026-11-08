@@ -28,7 +28,7 @@ if ($contenido | Where-Object { $_ -match '[\\/]\.env\s' }) {
     Write-Host "❌ El zip contiene un .env: NO se publica. Revisa robot.spec."
     exit 1
 }
-Write-Host "✅ Zip verificado sin .env:" (Get-Item RobotAsistente-win64.zip).Length / 1MB "MB"
+Write-Host "✅ Zip verificado sin .env ($([math]::Round((Get-Item RobotAsistente-win64.zip).Length / 1MB, 1)) MB)"
 
 # 5. Publicación opcional: tag + release con las notas de RELEASE_NOTES.md.
 if ($Publicar) {

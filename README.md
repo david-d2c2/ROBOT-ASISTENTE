@@ -31,7 +31,9 @@ Y sí, tiene **humor ácido**: te contesta con sorna, pero siempre te da lo que 
   «Probar conexión» — sin tocar un `.env` a mano.
 - 🧠 **Memoria de conversación** configurable, historial persistente opcional (SQLite)
   y botón para olvidarlo todo al instante. Además, **memoria de largo plazo**: dile
-  «recuerda que...» y lo guardará en tu PC para futuras conversaciones.
+  «recuerda que...» y lo guardará en tu PC para futuras conversaciones; «olvida que...»
+  borra un recuerdo concreto y «🧠 Ver lo que sabe de mí» (menú contextual) muestra la
+  lista completa.
 - ⚡ **Streaming**: ves la respuesta mientras se genera, en un chat con burbujas, y el
   robot **la va diciendo frase a frase** conforme llega.
 - 👂 **Manos libres**: activa "👂 Modo manos libres" en la bandeja y di "robot, abre la
@@ -44,7 +46,7 @@ Y sí, tiene **humor ácido**: te contesta con sorna, pero siempre te da lo que 
   recordatorios con notificación, notas y **pomodoro** con aviso al terminar.
 - 🧩 **Habilidades locales**: suelta un JSON en la carpeta `skills/` con disparadores y
   respuesta, y el robot contestará al instante sin llamar a la IA (frases fijas, modos
-  demo, atajos de personalidad).
+  demo, atajos de personalidad) — **escrito o dictado por voz**.
 - 🎤 **Voz**: habla y te responde en voz alta; atajo global de dictado (Ctrl+Alt+R);
   dictado con Google o **100 % local** (faster-whisper); 🔇 para callarlo sin perder
   la respuesta.
@@ -53,7 +55,8 @@ Y sí, tiene **humor ácido**: te contesta con sorna, pero siempre te da lo que 
 - 🎭 **Personalidades**: humor ácido, normal o técnico, cambiables desde ajustes.
 - 🎨 **Skins de color**: Clásico, Matrix, Neón o Solar — cambian ojos, antena, burbuja
   y botones al instante desde ⚙ Ajustes.
-- 🎙️ **Selector de micrófono** y editor de apps permitidas en ⚙ Ajustes.
+- 🎙️ **Selector de micrófono** (se recuerda por nombre, inmune a que cambien los
+  puertos al reiniciar) y editor de apps permitidas en ⚙ Ajustes.
 - 📤 **Exportar conversación** a Markdown desde el menú contextual.
 - 🔄 **Auto-actualizador**: te ofrece descargar e instalar la nueva versión desde
   la propia app (ejecutable).

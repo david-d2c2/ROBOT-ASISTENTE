@@ -48,10 +48,32 @@ class VoiceEngine:
         raw_mic = os.getenv("MIC_INDEX", "").strip()
         if raw_mic.isdigit():
             self.mic_index = int(raw_mic)
+        # Micrófono por nombre: los índices cambian al reiniciar o reconectar.
+        self.mic_name = os.getenv("MIC_NAME", "").strip()
         self._whisper = None
         self._whisper_lock = threading.Lock()
         self._piper = None
         self._piper_lock = threading.Lock()
+
+    def _resolved_mic_index(self) -> int | None:
+        """Índice del micrófono elegido. El nombre manda (el índice guardado
+        puede quedar obsoleto al cambiar dispositivos); si no se encuentra,
+        predeterminado."""
+        if self.mic_name:
+            try:
+                import pyaudio
+                audio = pyaudio.PyAudio()
+                try:
+                    for index in range(audio.get_device_count()):
+                        info = audio.get_device_info_by_index(index)
+                        if info.get("maxInputChannels", 0) > 0 and str(info.get("name", "")).strip() == self.mic_name:
+                            return index
+                finally:
+                    audio.terminate()
+            except Exception:
+                log.warning("No se pudo buscar el micrófono %r", self.mic_name, exc_info=True)
+            log.warning("Micrófono %r no encontrado; se usa el predeterminado", self.mic_name)
+        return self.mic_index
 
     def clean_text_for_speech(self, text: str) -> str:
         """Elimina asteriscos, símbolos Markdown y emojis antes de hablar."""
@@ -133,7 +155,7 @@ class VoiceEngine:
         recognizer.operation_timeout = 15
 
         try:
-            with sr.Microphone(device_index=self.mic_index) as source:
+            with sr.Microphone(device_index=self._resolved_mic_index()) as source:
                 recognizer.adjust_for_ambient_noise(source, duration=0.3)
                 audio = recognizer.listen(source, timeout=6, phrase_time_limit=12)
         except sr.WaitTimeoutError:

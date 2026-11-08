@@ -5,6 +5,7 @@ import re
 from PyQt6.QtCore import QThread, pyqtSignal
 
 from core.ai_engine import AIEngine, AIError
+from core import skills as local_skills
 from core.voice_engine import VoiceEngine
 
 log = logging.getLogger(__name__)
@@ -64,6 +65,11 @@ class AIWorker(QThread):
                 self.query_ready.emit(query)
                 self.state_changed.emit("THINKING")
                 self.status_update.emit(f"Tú: «{query}»\nPensando...")
+                skill = local_skills.match_skill(query)
+                if skill is not None:
+                    log.info("Habilidad local '%s' activada por voz", skill["name"])
+                    self._answer_locally(skill)
+                    return
 
             answer = ""
             pending_speech = ""
@@ -119,6 +125,20 @@ class AIWorker(QThread):
             except Exception:
                 log.warning("Fallo de reproducción de voz", exc_info=True)
                 self.failed.emit("La respuesta está escrita, pero no pude reproducir la voz.")
+
+    def _answer_locally(self, skill: dict):
+        """Habilidad local activada por voz: responde sin llamar a la IA."""
+        answer = skill["response"].strip()
+        self.answer_ready.emit(answer)
+        if self.speech_enabled and skill["say"] and not self.isInterruptionRequested():
+            self.state_changed.emit("SPEAKING")
+            try:
+                self.voice.speak(
+                    answer,
+                    should_stop=lambda: self.isInterruptionRequested() or not self.speech_enabled,
+                )
+            except Exception:
+                log.warning("No se pudo decir la respuesta de la habilidad local", exc_info=True)
 
     def _speak_sentence(self, sentence: str):
         """Dice una frase durante el streaming; un fallo de voz no corta el texto."""

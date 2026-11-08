@@ -192,6 +192,12 @@ class SettingsDialog(QDialog):
         mic_index = os.environ.get("MIC_INDEX", "").strip()
         if mic_index.isdigit() and int(mic_index) + 1 < self.mic_combo.count():
             self.mic_combo.setCurrentIndex(int(mic_index) + 1)
+        # El nombre manda sobre el índice: los índices cambian al reiniciar.
+        mic_name = os.environ.get("MIC_NAME", "").strip()
+        if mic_name:
+            position = self.mic_combo.findText(mic_name)
+            if position > 0:
+                self.mic_combo.setCurrentIndex(position)
         self.apps_edit.setText(str(value("actions/allowed_apps") or ""))
         self.tts_provider_combo.setCurrentIndex(1 if env.get("TTS_PROVIDER", "edge") == "piper" else 0)
         self.tts_edit.setText(
@@ -299,9 +305,10 @@ class SettingsDialog(QDialog):
             self.status_label.setText("⚠️ Ese proveedor necesita una clave de API.")
             return
         mic_index = self.mic_combo.currentIndex() - 1
+        mic_name = self.mic_combo.currentText().strip() if mic_index >= 0 else ""
         env_mic = str(self._mic_indices[mic_index]) if 0 <= mic_index < len(self._mic_indices) else ""
         try:
-            envfile.update_env({**self._env_updates(), "MIC_INDEX": env_mic})
+            envfile.update_env({**self._env_updates(), "MIC_INDEX": env_mic, "MIC_NAME": mic_name})
         except Exception as exc:  # cualquier fallo al guardar se muestra, nunca se traga
             log.exception("No se pudo guardar los ajustes")
             self.status_label.setText(f"❌ No se pudo guardar: {exc}")
