@@ -6,6 +6,7 @@ worker, ajustes). Este fichero solo arranca la aplicación.
 import logging
 import sys
 import os
+import threading
 
 from PyQt6.QtGui import QIcon
 from PyQt6.QtWidgets import QApplication, QMessageBox
@@ -24,13 +25,23 @@ log = logging.getLogger(__name__)
 
 
 def _install_excepthook():
-    """Una excepción no capturada en un slot aborta el proceso entero (PyQt).
-    Con este hook se registra y la aplicación sigue viva."""
+    """Una excepción no capturada en un slot aborta el proceso entero (PyQt),
+    y en los hilos muere en silencio: con estos hooks se registran ambas y la
+    aplicación sigue viva."""
 
-    def hook(exc_type, exc_value, exc_tb):
+    def slot_hook(exc_type, exc_value, exc_tb):
         log.critical("Excepción no capturada", exc_info=(exc_type, exc_value, exc_tb))
 
-    sys.excepthook = hook
+    def thread_hook(args):
+        name = args.thread.name if args.thread is not None else "?"
+        log.critical(
+            "Excepción no capturada en el hilo %s",
+            name,
+            exc_info=(args.exc_type, args.exc_value, args.exc_traceback),
+        )
+
+    sys.excepthook = slot_hook
+    threading.excepthook = thread_hook
 
 
 def main() -> int:

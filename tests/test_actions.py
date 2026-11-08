@@ -66,13 +66,44 @@ class ActionExecutionTests(unittest.TestCase):
         self.assertIn("café", actions.describe({"action": "remember", "text": "tomo café"}))
 
     def test_pomodoro_schedules_notification(self):
+        with patch("core.actions.QTimer") as qtimer:
+            ok, message = actions.execute({"action": "pomodoro", "minutes": 25}, None)
+        self.assertTrue(ok)
+        qtimer.return_value.start.assert_called_once_with(1_500_000)
+        actions._pomodoro_timer = None  # no filtrar el Mock a otros tests
+
+    def test_second_pomodoro_replaces_the_previous(self):
+        with patch("core.actions.QTimer") as qtimer:
+            actions.execute({"action": "pomodoro", "minutes": 25}, None)
+            ok, message = actions.execute({"action": "pomodoro", "minutes": 10}, None)
+        self.assertTrue(ok)
+        self.assertIn("Pomodoro", message)
+        qtimer.return_value.stop.assert_called_once()
+        actions._pomodoro_timer = None
+
+    def test_pomodoro_announces_in_conversation_when_done(self):
+        announced = []
+        with patch("core.actions.QTimer") as qtimer:
+            ok, _ = actions.execute(
+                {"action": "pomodoro", "minutes": 1}, None, on_done=announced.append
+            )
+        self.assertTrue(ok)
+        callback = qtimer.return_value.timeout.connect.call_args.args[0]
+        callback()  # simula que el temporizador termina
+        self.assertEqual(announced, ["🍅 Pomodoro terminado. Descansa 5 minutos."])
+        actions._pomodoro_timer = None
+
+    def test_reminder_announces_in_conversation_when_done(self):
+        announced = []
         timer = Mock()
         with patch("core.actions.QTimer") as qtimer:
             qtimer.singleShot = timer
-            ok, message = actions.execute({"action": "pomodoro", "minutes": 25}, None)
-        self.assertTrue(ok)
-        timer.assert_called_once()
-        self.assertEqual(timer.call_args.args[0], 1_500_000)
+            actions.execute(
+                {"action": "reminder", "minutes": 2, "message": "ropa"}, None,
+                on_done=announced.append,
+            )
+        timer.call_args.args[1]()  # simula que el temporizador dispara
+        self.assertEqual(announced, ["⏰ Recordatorio: ropa"])
 
     def test_remember_stores_the_fact(self):
         store = Mock()

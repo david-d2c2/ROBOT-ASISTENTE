@@ -302,8 +302,9 @@ class SettingsDialog(QDialog):
         env_mic = str(self._mic_indices[mic_index]) if 0 <= mic_index < len(self._mic_indices) else ""
         try:
             envfile.update_env({**self._env_updates(), "MIC_INDEX": env_mic})
-        except OSError as exc:
-            self.status_label.setText(f"❌ No se pudo guardar .env: {exc}")
+        except Exception as exc:  # cualquier fallo al guardar se muestra, nunca se traga
+            log.exception("No se pudo guardar los ajustes")
+            self.status_label.setText(f"❌ No se pudo guardar: {exc}")
             return
         set_value("skin", SKIN_LABELS[self.skin_combo.currentIndex()][1])
         set_value("actions/enabled", self.actions_check.isChecked())

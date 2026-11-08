@@ -27,10 +27,21 @@ def skills_dir() -> Path:
     return Path(getattr(sys, "_MEIPASS", Path.cwd())) / "skills"
 
 
+# Caché de habilidades: releer el disco solo cuando cambia algún JSON.
+_cache: dict = {"stamp": None, "skills": []}
+
+
 def load_skills() -> list[dict]:
     directory = skills_dir()
-    if not directory.exists():
-        return []
+    try:
+        stamp = (
+            str(directory),
+            tuple(sorted((p.name, p.stat().st_mtime_ns) for p in directory.glob("*.json"))),
+        )
+    except OSError:
+        stamp = None
+    if stamp is not None and _cache["stamp"] == stamp:
+        return _cache["skills"]
     skills = []
     for path in sorted(directory.glob("*.json")):
         try:
@@ -49,6 +60,8 @@ def load_skills() -> list[dict]:
             "response": str(response),
             "say": bool(data.get("say", False)),
         })
+    _cache["stamp"] = stamp
+    _cache["skills"] = skills
     return skills
 
 

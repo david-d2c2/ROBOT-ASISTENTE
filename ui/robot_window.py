@@ -966,11 +966,16 @@ class DesktopRobot(RobotPaintingMixin, QWidget):
         if kind not in desktop_actions.always_allowed() and not self._confirm_action(action):
             self._append_message("system", "🚫 Acción denegada. Que quede entre nosotros.")
             return
-        ok, message = desktop_actions.execute(action, self.tray)
+        ok, message = desktop_actions.execute(action, self.tray, on_done=self._scheduled_notice)
         self._append_message("system", message)
         if not ok:
             self.state = "ERROR"
             QTimer.singleShot(1500, self.clear_error_state)
+
+    def _scheduled_notice(self, text: str):
+        """Aviso de algo programado (recordatorio, fin de pomodoro) en el chat."""
+        self._append_message("assistant", text)
+        self._speak_quip(text)
 
     def _confirm_action(self, action: dict) -> bool:
         box = QMessageBox(self)

@@ -21,6 +21,9 @@ log = logging.getLogger(__name__)
 KNOWN_ACTIONS = {"open_app", "open_url", "reminder", "note", "pomodoro", "remember"}
 URL_SCHEMES = ("http://", "https://")
 
+# Pomodoro en curso, para poder sustituirlo si empieza otro.
+_pomodoro_timer: QTimer | None = None
+
 
 def allowed_apps() -> list[str]:
     raw = str(app_settings.value("actions/allowed_apps") or "")
@@ -92,8 +95,13 @@ def notes_path() -> Path:
     return Path.cwd() / "data" / "notas.txt"
 
 
-def execute(action: dict, tray) -> tuple[bool, str]:
-    """Ejecuta la acción ya confirmada. Devuelve (éxito, mensaje para el chat)."""
+def execute(action: dict, tray, on_done=None) -> tuple[bool, str]:
+    """Ejecuta la acción ya confirmada. Devuelve (éxito, mensaje para el chat).
+
+    on_done (opcional) se invoca en el hilo principal cuando algo programado
+    ocurre más tarde (recordatorio, fin de pomodoro) para avisar en el chat.
+    """
+    global _pomodoro_timer
     kind = action.get("action")
     try:
         if kind == "open_app":
@@ -115,16 +123,27 @@ def execute(action: dict, tray) -> tuple[bool, str]:
             message = str(action.get("message") or "Recordatorio")
             QTimer.singleShot(
                 int(minutes * 60_000),
-                lambda: _notify(tray, "Recordatorio", message),
+                lambda: (
+                    _notify(tray, "Recordatorio", message),
+                    _announce(on_done, f"⏰ Recordatorio: {message}"),
+                ),
             )
             return True, f"⏰ Vale, te aviso en {minutes:g} min: «{message}»"
 
         if kind == "pomodoro":
             minutes = max(0.1, float(action.get("minutes", 25)))
-            QTimer.singleShot(
-                int(minutes * 60_000),
-                lambda: _notify(tray, "Pomodoro terminado", "Descansa 5 minutos. Te lo has ganado... más o menos."),
+            if _pomodoro_timer is not None:
+                _pomodoro_timer.stop()
+            timer = QTimer()
+            timer.setSingleShot(True)
+            timer.timeout.connect(
+                lambda: (
+                    _notify(tray, "Pomodoro terminado", "Descansa 5 minutos. Te lo has ganado... más o menos."),
+                    _announce(on_done, "🍅 Pomodoro terminado. Descansa 5 minutos."),
+                )
             )
+            timer.start(int(minutes * 60_000))
+            _pomodoro_timer = timer
             return True, f"🍅 Pomodoro de {minutes:g} min iniciado. Te aviso al acabar."
 
         if kind == "note":
@@ -155,3 +174,12 @@ def _notify(tray, title: str, message: str):
             tray.showMessage(title, message, tray.icon(), 8000)
     except Exception:
         log.warning("No se pudo mostrar la notificación", exc_info=True)
+
+
+def _announce(on_done, text: str):
+    """Lleva un aviso programado a la conversación, si hay receptor."""
+    try:
+        if on_done is not None:
+            on_done(text)
+    except Exception:
+        log.warning("El aviso programado no llegó a la conversación", exc_info=True)
