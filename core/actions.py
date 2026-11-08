@@ -18,11 +18,19 @@ from core.memory_store import MemoryStore
 
 log = logging.getLogger(__name__)
 
-KNOWN_ACTIONS = {"open_app", "open_url", "reminder", "note", "pomodoro", "remember", "forget"}
+KNOWN_ACTIONS = {"open_app", "open_url", "reminder", "note", "pomodoro", "remember", "forget", "schedule", "unschedule"}
 URL_SCHEMES = ("http://", "https://")
 
 # Pomodoro en curso, para poder sustituirlo si empieza otro.
 _pomodoro_timer: QTimer | None = None
+
+# Agenda de tareas programadas; la ventana la registra al arrancar.
+_scheduler = None
+
+
+def set_scheduler(scheduler):
+    global _scheduler
+    _scheduler = scheduler
 
 
 def allowed_apps() -> list[str]:
@@ -51,7 +59,9 @@ def build_prompt_instructions() -> str:
         '{"action": "note", "text": "<texto>"} guarda una nota; '
         '{"action": "pomodoro", "minutes": <número>} inicia un pomodoro; '
         '{"action": "remember", "text": "<texto>"} guarda de forma permanente un hecho sobre el usuario en tu memoria; '
-        '{"action": "forget", "text": "<texto>"} borra de tu memoria el hecho guardado que coincida con ese texto. '
+        '{"action": "forget", "text": "<texto>"} borra de tu memoria el hecho guardado que coincida con ese texto; '
+        '{"action": "schedule", "time": "HH:MM", "message": "<texto>", "repeat": "daily" o "once"} programa un aviso a esa hora (cada día o una sola vez); '
+        '{"action": "unschedule", "message": "<texto>"} cancela los avisos programados cuyo mensaje coincida. '
         "Si el nombre de app no está en la lista permitida, responde con JSON de todas formas: "
         "el sistema lo denegará con seguridad. Si la petición no es una acción, responde texto normal. "
         "Nunca inventes acciones distintas de estas."
@@ -88,6 +98,11 @@ def describe(action: dict) -> str:
         return f"Guardar en tu memoria: «{str(action.get('text', ''))[:120]}»"
     if kind == "forget":
         return f"Olvidar para siempre: «{str(action.get('text', ''))[:120]}»"
+    if kind == "schedule":
+        repeat = "cada día" if str(action.get("repeat", "daily")).lower() != "once" else "una vez"
+        return f"Programar {repeat} a las {action.get('time', '?')}: «{str(action.get('message', ''))[:120]}»"
+    if kind == "unschedule":
+        return f"Cancelar avisos programados: «{str(action.get('message', ''))[:120]}»"
 
     if kind == "note":
         return f"Guardar una nota: «{str(action.get('text', ''))[:120]}»"
@@ -174,6 +189,31 @@ def execute(action: dict, tray, on_done=None) -> tuple[bool, str]:
             if borrados:
                 return True, f"🧽 Olvidado ({borrados}): «{text[:120]}»"
             return True, f"🤷 No tenía guardado nada que coincida con «{text[:120]}»."
+
+        if kind == "schedule":
+            if _scheduler is None:
+                return False, "⛔ La agenda no está disponible ahora mismo."
+            try:
+                task = _scheduler.add(
+                    str(action.get("time", "")),
+                    str(action.get("message") or "Recordatorio"),
+                    str(action.get("repeat", "daily")),
+                )
+            except ValueError as exc:
+                return False, f"⛔ {exc}"
+            etiqueta = "cada día" if task["repeat"] == "daily" else "una vez"
+            return True, f"⏰ Programado {etiqueta} a las {task['time']}: «{task['message'][:120]}»"
+
+        if kind == "unschedule":
+            if _scheduler is None:
+                return False, "⛔ La agenda no está disponible ahora mismo."
+            query = str(action.get("message") or action.get("time") or "").strip()
+            if not query:
+                return False, "⛔ No me has dicho qué aviso cancelar."
+            borrados = _scheduler.remove_matching(query)
+            if borrados:
+                return True, f"🗑️ Cancelado ({borrados}): avisos que coincidían con «{query[:120]}»."
+            return True, f"🤷 No tenía avisos programados que coincidan con «{query[:120]}»."
     except Exception as exc:
         log.warning("Acción %s falló: %s", kind, exc)
         return False, "⛔ La acción falló al ejecutarse."

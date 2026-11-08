@@ -136,6 +136,41 @@ class ActionExecutionTests(unittest.TestCase):
         self.assertTrue(ok)
         self.assertIn("No tenía", message)
 
+    def test_describe_schedule(self):
+        self.assertIn("09:00", actions.describe({"action": "schedule", "time": "09:00", "message": "la ropa"}))
+
+    def test_schedule_adds_task_and_reports(self):
+        agenda = Mock()
+        agenda.add.return_value = {"time": "09:00", "message": "la ropa", "repeat": "daily"}
+        with patch.object(actions, "_scheduler", agenda):
+            ok, message = actions.execute(
+                {"action": "schedule", "time": "9:00", "message": "la ropa"}, None
+            )
+        self.assertTrue(ok)
+        agenda.add.assert_called_once_with("9:00", "la ropa", "daily")
+        self.assertIn("09:00", message)
+
+    def test_schedule_reports_invalid_time(self):
+        agenda = Mock()
+        agenda.add.side_effect = ValueError("Hora inválida")
+        with patch.object(actions, "_scheduler", agenda):
+            ok, message = actions.execute({"action": "schedule", "time": "no"}, None)
+        self.assertFalse(ok)
+        self.assertIn("Hora inválida", message)
+
+    def test_schedule_without_scheduler_fails_gracefully(self):
+        with patch.object(actions, "_scheduler", None):
+            ok, message = actions.execute({"action": "schedule", "time": "09:00", "message": "x"}, None)
+        self.assertFalse(ok)
+
+    def test_unschedule_removes_matching(self):
+        agenda = Mock()
+        agenda.remove_matching.return_value = 1
+        with patch.object(actions, "_scheduler", agenda):
+            ok, message = actions.execute({"action": "unschedule", "message": "ropa"}, None)
+        self.assertTrue(ok)
+        agenda.remove_matching.assert_called_once_with("ropa")
+
     def test_prompt_instructions_include_allowlist(self):
         with patch.object(app_settings, 'value', return_value="calc,notepad"):
             instructions = actions.build_prompt_instructions()

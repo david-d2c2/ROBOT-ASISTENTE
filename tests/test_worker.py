@@ -55,6 +55,17 @@ class VoiceSkillTests(unittest.TestCase):
         self.assertEqual(voice.spoken, ["Habilidad activada."])
         self.assertIn("SPEAKING", states)
 
+    def test_voice_skill_emits_declared_actions(self):
+        voice = FakeVoice("demo")
+        acciones = [{"action": "open_url", "url": "https://ejemplo.com"}]
+        skill = {"name": "d", "triggers": ["demo"], "response": "ok", "say": False, "actions": acciones}
+        pedidas = []
+        with patch("core.worker.local_skills.match_skill", return_value=skill):
+            worker = AIWorker(FakeAI(), voice, "", use_mic=True, speech_enabled=False)
+            worker.actions_requested.connect(pedidas.append)
+            worker.run()
+        self.assertEqual(pedidas, [acciones])
+
 
 if __name__ == "__main__":
     unittest.main()

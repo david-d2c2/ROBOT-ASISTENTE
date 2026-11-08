@@ -24,6 +24,7 @@ from core.ai_engine import AIEngine
 from core.chat_store import ChatStore
 from core.hands_free import HandsFreeLoop
 from core.memory_store import MemoryStore
+from core.scheduler import Scheduler
 from core import skills as local_skills
 from core.single_instance import start_instance_server
 from core.version import APP_NAME, __version__
@@ -69,6 +70,8 @@ class DesktopRobot(RobotPaintingMixin, QWidget):
         self.memory_store = MemoryStore()
         self.ai = AIEngine(memory_store=self.memory_store)
         self.voice = VoiceEngine()
+        self.scheduler = Scheduler(on_due=self._on_task_due)
+        desktop_actions.set_scheduler(self.scheduler)
         self.speech_enabled = True
         self.worker = None
         self._retired = []
@@ -461,6 +464,8 @@ class DesktopRobot(RobotPaintingMixin, QWidget):
         self.chat_store.append("assistant", skill["response"])
         if skill["say"] and self.speech_enabled:
             self._speak_quip(skill["response"])
+        for action in skill.get("actions", []):
+            self._run_action(action)
 
     def _greet_by_hour(self):
         """Rutina proactiva: saludo según la hora al arrancar."""
@@ -797,6 +802,7 @@ class DesktopRobot(RobotPaintingMixin, QWidget):
         self.worker.answer_ready.connect(self.on_ai_response)
         self.worker.state_changed.connect(self.on_state_changed)
         self.worker.failed.connect(self.on_worker_error)
+        self.worker.actions_requested.connect(self._on_worker_actions)
         self.worker.finished.connect(lambda w=self.worker: self.on_worker_finished(w))
         self.worker.start()
 
@@ -968,8 +974,10 @@ class DesktopRobot(RobotPaintingMixin, QWidget):
         if not app_settings.value("actions/enabled"):
             return
         action = desktop_actions.extract_action(response_text)
-        if action is None:
-            return
+        if action is not None:
+            self._run_action(action)
+
+    def _run_action(self, action: dict):
         kind = action.get("action")
         log.info("Acción solicitada: %s", action)
         if kind == "open_app" and str(action.get("app", "")).lower() not in desktop_actions.allowed_apps():
@@ -984,10 +992,26 @@ class DesktopRobot(RobotPaintingMixin, QWidget):
             self.state = "ERROR"
             QTimer.singleShot(1500, self.clear_error_state)
 
+    def _on_worker_actions(self, actions: list):
+        """Acciones declaradas por una habilidad activada por voz."""
+        if not app_settings.value("actions/enabled"):
+            return
+        for action in actions:
+            self._run_action(action)
+
     def _scheduled_notice(self, text: str):
         """Aviso de algo programado (recordatorio, fin de pomodoro) en el chat."""
         self._append_message("assistant", text)
         self._speak_quip(text)
+
+    def _on_task_due(self, task: dict):
+        """Una tarea de la agenda llega a su hora: bandeja + chat + voz."""
+        try:
+            if self.tray is not None:
+                self.tray.showMessage("Tarea programada", str(task.get("message", "")), self.tray.icon(), 8000)
+        except Exception:
+            log.warning("No se pudo avisar en la bandeja de la tarea", exc_info=True)
+        self._scheduled_notice(f"⏰ {task.get('message', 'Tarea programada')}")
 
     def _confirm_action(self, action: dict) -> bool:
         box = QMessageBox(self)

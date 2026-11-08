@@ -27,6 +27,9 @@ class AIWorker(QThread):
     answer_ready = pyqtSignal(str)
     state_changed = pyqtSignal(str)
     failed = pyqtSignal(str)
+    # Acciones locales pedidas por una habilidad; la ventana las confirma y
+    # las ejecuta en el hilo principal (conexión en cola).
+    actions_requested = pyqtSignal(list)
 
     def __init__(self, ai: AIEngine, voice: VoiceEngine, prompt: str,
                  use_mic: bool = False, speech_enabled: bool = True, history=None,
@@ -130,6 +133,8 @@ class AIWorker(QThread):
         """Habilidad local activada por voz: responde sin llamar a la IA."""
         answer = skill["response"].strip()
         self.answer_ready.emit(answer)
+        if skill.get("actions"):
+            self.actions_requested.emit(list(skill["actions"]))
         if self.speech_enabled and skill["say"] and not self.isInterruptionRequested():
             self.state_changed.emit("SPEAKING")
             try:

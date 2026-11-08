@@ -38,6 +38,24 @@ class SkillLoadingTests(unittest.TestCase):
         with patch.object(skills, "skills_dir", return_value=self.root / "no-existe"):
             self.assertEqual(skills.load_skills(), [])
 
+    def test_skill_can_declare_known_actions(self):
+        write_skill(self.root, "con_accion.json", {
+            "name": "web", "triggers": ["web"], "response": "ok",
+            "actions": [
+                {"action": "open_url", "url": "https://ejemplo.com"},
+                {"action": "format_c"},  # desconocida: se filtra
+                "inventado",             # no dict: se filtra
+            ],
+        })
+        with patch.object(skills, "skills_dir", return_value=self.root):
+            found = skills.load_skills()
+        self.assertEqual(found[0]["actions"], [{"action": "open_url", "url": "https://ejemplo.com"}])
+
+    def test_skill_without_actions_gets_empty_list(self):
+        write_skill(self.root, "simple.json", {"triggers": ["x"], "response": "y"})
+        with patch.object(skills, "skills_dir", return_value=self.root):
+            self.assertEqual(skills.load_skills()[0]["actions"], [])
+
     def test_frozen_uses_bundled_skills_when_no_local_folder(self):
         empty_app = self.root / "app"
         empty_app.mkdir()

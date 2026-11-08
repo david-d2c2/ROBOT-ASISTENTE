@@ -59,10 +59,21 @@ def load_skills() -> list[dict]:
             "triggers": triggers,
             "response": str(response),
             "say": bool(data.get("say", False)),
+            # Acciones locales opcionales (["open_app", "open_url", ...]):
+            # solo se aceptan las de la lista blanca del sistema.
+            "actions": _valid_actions(data.get("actions", [])),
         })
     _cache["stamp"] = stamp
     _cache["skills"] = skills
     return skills
+
+
+def _valid_actions(raw) -> list[dict]:
+    """Filtra las acciones declaradas por el JSON a las conocidas."""
+    from core.actions import KNOWN_ACTIONS  # importación tardía: evita ciclos
+    if not isinstance(raw, list):
+        return []
+    return [a for a in raw if isinstance(a, dict) and a.get("action") in KNOWN_ACTIONS]
 
 
 def match_skill(text: str, skills: list[dict] | None = None) -> dict | None:
