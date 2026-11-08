@@ -1,15 +1,18 @@
-Correcciones sobre la 3.3:
+Serie 3.4:
 
-- 🧠 **Arreglado**: la memoria de largo plazo no se aplicaba al conversar
-  (fallaba al cruzar hilos). Ahora «recuerda que...» funciona de verdad: lo
-  guarda, lo recuerda en las siguientes conversaciones y no duplica lo que
-  ya sabe.
-- 🛠️ **Robustez**: los recordatorios y el pomodoro avisan también en la
-  conversación (y por voz), no solo en la bandeja del sistema; empezar otro
-  pomodoro sustituye al anterior; las habilidades locales se cargan una sola
-  vez en vez de releerse en cada mensaje; cualquier error al guardar ajustes
-  se muestra en el diálogo sin cerrar nada; los fallos en hilos quedan
-  registrados en el log en lugar de perderse.
-- Incluye todo lo de 3.3: memoria de largo plazo, habilidades locales,
-  pomodoro, saludo por hora, y todos los arreglos del guardado de ajustes.
-- 132 tests automatizados.
+- ⏰ **Tareas programadas**: «recuérdame cada día a las 9 la ropa» y el robot
+  te avisa a esa hora (bandeja, chat y voz). La agenda persiste entre
+  sesiones, y «cancela el aviso de la ropa» la quita.
+- 🧩 **Habilidades con acciones**: un JSON en `skills/` puede declarar
+  acciones locales (abrir webs, apps, pomodoros, notas...) que el robot
+  ejecuta siempre pidiendo confirmación; funcionan por texto y por voz.
+- 🧠 **Memoria más flexible**: «olvida que...» borra un recuerdo concreto,
+  «🧠 Ver lo que sabe de mí» muestra la lista completa, y los recuerdos no
+  se duplican.
+- 🎙️ **Micrófono por nombre**: se recuerda el dispositivo elegido por su
+  nombre, inmune a que Windows cambie los índices al reiniciar.
+- 🤝 **CONTRIBUTING.md**: guía para quienes quieran colaborar en el repo
+  público (entorno, tests, convenciones y releases).
+- Incluye todo lo de 3.3.1: memoria entre hilos arreglada y mejoras de
+  robustez (avisos en el chat, pomodoro sustituible, caché de habilidades).
+- 157 tests automatizados.
