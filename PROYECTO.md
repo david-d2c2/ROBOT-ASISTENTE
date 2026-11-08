@@ -196,3 +196,10 @@ Pendiente:
 - La conversación vive en memoria: no hay historial persistente; «Olvidar
   conversación» la borra al instante.
 - Las preferencias (posición y voz) se guardan localmente con QSettings.
+
+## 12. Serie 3 (octubre 2026)
+
+- **3.0 — Visión**: captura de una región de la pantalla (botón 📷) para preguntarle al robot sobre lo que ve.
+- **3.1 — Manos libres**: wake words («robot, ...»), dictado continuo, habla por frases y paseo con carácter.
+- **3.2 — Plataforma**: skins de color, selector de micrófono, exportar conversación a Markdown y auto-actualizador.
+- **3.3 — Memoria y habilidades**: memoria de largo plazo en SQLite («recuerda que...»), habilidades locales JSON en `skills/`, pomodoro y saludo por hora. Correcciones posteriores a la release: el guardado de ajustes cerraba la app sin aplicar nada (fallo de la 3.2) y la memoria fallaba al usarse desde hilos distintos (sqlite no comparte conexiones).
