@@ -1,19 +1,15 @@
-Serie 3.3:
+Correcciones sobre la 3.3:
 
-- 🧠 **Memoria de largo plazo**: dile «recuerda que...» y lo guarda en tu PC
-  (SQLite). Lo recuerda en futuras conversaciones y puedes borrarlo todo con
-  «🧠 Olvidar lo que sabe de mí» del menú contextual.
-- 🧩 **Habilidades locales**: suelta un JSON en la carpeta `skills/` con
-  disparadores y respuesta, y el robot contesta al instante sin llamar a la IA
-  (frases fijas, modos demo, atajos de personalidad). En el ejecutable, crea la
-  carpeta `skills/` junto al exe; si no existe, se usa la de ejemplo incluida.
-- 🍅 **Pomodoro**: «inicia un pomodoro de 25 minutos» y te avisa con una
-  notificación al terminar.
-- 👋 **Saludo por hora**: te recibe según sea de mañana, tarde o noche.
-- 🛠️ **Arreglado**: pulsar Guardar en ⚙ Ajustes cerraba la aplicación sin
-  aplicar ningún cambio (fallo introducido en la 3.2). Además, Piper ya no
-  intenta descargar voces de Edge TTS: al cambiar de motor de voz se ajusta
-  la voz sugerida al motor elegido.
-- Incluye todo lo de 3.2: skins de color, manos libres, visión (📷),
-  exportar conversación y auto-actualizador.
-- 127 tests automatizados.
+- 🧠 **Arreglado**: la memoria de largo plazo no se aplicaba al conversar
+  (fallaba al cruzar hilos). Ahora «recuerda que...» funciona de verdad: lo
+  guarda, lo recuerda en las siguientes conversaciones y no duplica lo que
+  ya sabe.
+- 🛠️ **Robustez**: los recordatorios y el pomodoro avisan también en la
+  conversación (y por voz), no solo en la bandeja del sistema; empezar otro
+  pomodoro sustituye al anterior; las habilidades locales se cargan una sola
+  vez en vez de releerse en cada mensaje; cualquier error al guardar ajustes
+  se muestra en el diálogo sin cerrar nada; los fallos en hilos quedan
+  registrados en el log en lugar de perderse.
+- Incluye todo lo de 3.3: memoria de largo plazo, habilidades locales,
+  pomodoro, saludo por hora, y todos los arreglos del guardado de ajustes.
+- 132 tests automatizados.
