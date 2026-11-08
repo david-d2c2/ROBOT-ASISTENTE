@@ -44,9 +44,12 @@ Y sí, tiene **humor ácido**: te contesta con sorna, pero siempre te da lo que 
   proveedor multimodal (Z.AI/GLM, OpenAI o Gemini) y un modelo con visión.
 - 🛠️ **Acciones de escritorio con confirmación**: abrir apps (lista blanca), webs,
   recordatorios con notificación, notas y **pomodoro** con aviso al terminar.
+- ⏰ **Tareas programadas**: «recuérdame cada día a las 9 la ropa» — la agenda
+  persiste entre sesiones; «cancela el aviso de la ropa» la quita.
 - 🧩 **Habilidades locales**: suelta un JSON en la carpeta `skills/` con disparadores y
   respuesta, y el robot contestará al instante sin llamar a la IA (frases fijas, modos
-  demo, atajos de personalidad) — **escrito o dictado por voz**.
+  demo, atajos de personalidad) — **escrito o dictado por voz**, y pueden ejecutar
+  acciones locales (siempre con confirmación).
 - 🎤 **Voz**: habla y te responde en voz alta; atajo global de dictado (Ctrl+Alt+R);
   dictado con Google o **100 % local** (faster-whisper); 🔇 para callarlo sin perder
   la respuesta.
@@ -172,6 +175,7 @@ $env:QT_QPA_PLATFORM="offscreen"
 ```
 
 Arquitectura, decisiones e historial de fases en [PROYECTO.md](PROYECTO.md).
+¿Quieres colaborar? Empieza por [CONTRIBUTING.md](CONTRIBUTING.md).
 
 ## 📄 Licencia
 
