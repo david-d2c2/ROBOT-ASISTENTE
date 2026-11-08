@@ -16,38 +16,48 @@ def db_path() -> Path:
 
 
 class MemoryStore:
-    """Hechos explícitos del usuario ('recuerda que...'), persistentes."""
+    """Hechos explícitos del usuario ('recuerda que...'), persistentes.
 
-    def __init__(self):
-        self._connection: sqlite3.Connection | None = None
+    Se usa desde el hilo principal (guardar con la acción «remember») y desde
+    el hilo del AIWorker (inyectar los recuerdos en el prompt), así que cada
+    operación abre y cierra su propia conexión: sqlite no permite compartir
+    una conexión entre hilos.
+    """
 
     def _connect(self) -> sqlite3.Connection | None:
-        if self._connection is None:
-            try:
-                self._connection = sqlite3.connect(db_path())
-                self._connection.execute(
-                    "CREATE TABLE IF NOT EXISTS memories ("
-                    " id INTEGER PRIMARY KEY AUTOINCREMENT,"
-                    " ts TEXT DEFAULT CURRENT_TIMESTAMP,"
-                    " content TEXT NOT NULL)"
-                )
-                self._connection.commit()
-            except sqlite3.Error:
-                log.exception("No se pudo abrir la memoria de largo plazo")
-                self._connection = None
-        return self._connection
+        connection = None
+        try:
+            connection = sqlite3.connect(db_path())
+            connection.execute(
+                "CREATE TABLE IF NOT EXISTS memories ("
+                " id INTEGER PRIMARY KEY AUTOINCREMENT,"
+                " ts TEXT DEFAULT CURRENT_TIMESTAMP,"
+                " content TEXT NOT NULL)"
+            )
+            connection.commit()
+            return connection
+        except sqlite3.Error:
+            log.exception("No se pudo abrir la memoria de largo plazo")
+            if connection is not None:
+                connection.close()
+            return None
 
     def add(self, text: str):
+        text = (text or "").strip()
+        if not text:
+            return
         connection = self._connect()
         if connection is None:
             return
         try:
-            connection.execute(
-                "INSERT INTO memories (content) VALUES (?)", (text.strip(),)
-            )
+            # Recordar dos veces lo mismo no aporta nada: sin duplicados.
+            connection.execute("DELETE FROM memories WHERE content = ?", (text,))
+            connection.execute("INSERT INTO memories (content) VALUES (?)", (text,))
             connection.commit()
         except sqlite3.Error:
             log.exception("No se pudo guardar el recuerdo")
+        finally:
+            connection.close()
 
     def all(self, limit: int = 50) -> list[str]:
         connection = self._connect()
@@ -63,16 +73,19 @@ class MemoryStore:
         except sqlite3.Error:
             log.exception("No se pudo leer la memoria")
             return []
+        finally:
+            connection.close()
 
     def clear(self):
-        if self._connection is not None:
+        connection = self._connect()
+        if connection is not None:
             try:
-                self._connection.execute("DELETE FROM memories")
-                self._connection.commit()
+                connection.execute("DELETE FROM memories")
+                connection.commit()
             except sqlite3.Error:
                 log.exception("No se pudo vaciar la memoria")
-            self._connection.close()
-            self._connection = None
+            finally:
+                connection.close()
         path = db_path()
         if path.exists():
             try:

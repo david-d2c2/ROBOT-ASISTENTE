@@ -1,4 +1,5 @@
 import tempfile
+import threading
 import unittest
 from pathlib import Path
 from unittest.mock import patch
@@ -40,6 +41,25 @@ class MemoryStoreTests(unittest.TestCase):
         self.store.clear()
         self.store.add("dos")
         self.assertEqual(self.store.all(), ["dos"])
+
+    def test_add_deduplicates_repeated_facts(self):
+        self.store.add("tiene un gato")
+        self.store.add("tiene un gato")
+        self.assertEqual(self.store.all(), ["tiene un gato"])
+
+    def test_usable_from_threads_other_than_the_creator(self):
+        # Reproduce el fallo real: guardar desde el hilo principal (acción
+        # remember) y leer desde el hilo del AIWorker (inyección en prompt).
+        self.store.add("le gusta el café")
+        result = {}
+
+        def leer():
+            result["memorias"] = self.store.all()
+
+        hilo = threading.Thread(target=leer)
+        hilo.start()
+        hilo.join()
+        self.assertEqual(result["memorias"], ["le gusta el café"])
 
     def test_clear_without_prior_use_still_removes_a_stale_file(self):
         self.db.write_bytes(b"base de datos vieja")
