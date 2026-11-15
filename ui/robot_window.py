@@ -1115,7 +1115,11 @@ class DesktopRobot(RobotPaintingMixin, QWidget):
     def on_partial(self, text: str):
         if self._closing or self.worker is None:
             return
-        self.bubble.update_partial(text)
+        visible = text
+        # El protocolo de acciones viaja en JSON: mientras llega, sin código a la vista.
+        if app_settings.value("actions/enabled") and visible.strip().startswith("{"):
+            visible = "🌀 Déjame preparar eso..."
+        self.bubble.update_partial(visible)
 
     def on_state_changed(self, state: str):
         if not self._closing:
@@ -1135,10 +1139,18 @@ class DesktopRobot(RobotPaintingMixin, QWidget):
         self._answer_received = True
         self.set_mood("happy", ticks=36)
         self.bubble.set_status(None)
+        # Si la respuesta trae una acción, el usuario ve lo que va a pasar,
+        # no el JSON del protocolo (que sí se conserva en el historial interno).
+        texto_visible = response_text
+        accion = None
+        if app_settings.value("actions/enabled"):
+            accion = desktop_actions.extract_action(response_text)
+            if accion is not None:
+                texto_visible = f"🌀 {desktop_actions.describe(accion)}"
         if self.bubble.messages and self.bubble.messages[-1]["role"] == "assistant":
-            self.bubble.messages[-1]["text"] = response_text
+            self.bubble.messages[-1]["text"] = texto_visible
         else:
-            self.bubble.messages.append({"role": "assistant", "text": response_text})
+            self.bubble.messages.append({"role": "assistant", "text": texto_visible})
         self.bubble.render()
         self._render_chat()
         worker = self.worker
@@ -1148,9 +1160,12 @@ class DesktopRobot(RobotPaintingMixin, QWidget):
             if len(self.history) > 40:
                 self.history = self.history[-40:]
             self.chat_store.append("user", worker.final_query)
-            self.chat_store.append("assistant", response_text)
+            self.chat_store.append("assistant", texto_visible)
         self.anchor_to_ground()
-        self._maybe_run_action(response_text)
+        if accion is not None:
+            self._run_action(accion)
+        else:
+            self._maybe_run_action(response_text)
 
     # ---- Acciones de escritorio ----
 

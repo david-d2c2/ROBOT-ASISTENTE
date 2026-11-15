@@ -106,7 +106,8 @@ def describe(action: dict) -> str:
 
     if kind == "note":
         return f"Guardar una nota: «{str(action.get('text', ''))[:120]}»"
-    return str(action)
+    # Nunca enseñar el JSON crudo: algo legible aunque el tipo no se conozca.
+    return f"Ejecutar una acción de tipo «{kind}»"
 
 
 def notes_path() -> Path:

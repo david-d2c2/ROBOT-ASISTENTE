@@ -241,3 +241,9 @@ modelo madure — hoy exige ~12 GB de VRAM y es base de investigación.
   ~45 s o hasta que lo toques), motor a volumen casi imperceptible
   (`SFX_VOLUME` como multiplicador global) y botón 🧹 para limpiar la ventana
   de chat sin perder el contexto de la conversación.
+
+- **5.3.2 — Sin código a la vista**: el JSON del protocolo de acciones ya no
+  se muestra: mientras llega se ve «🌀 Déjame preparar eso...», y al terminar,
+  la descripción humana («Abrir la aplicación "notepad"») en burbuja y chat
+  persistente; el crudo queda solo en el historial interno del modelo.
+  `describe()` nunca vuelca el dict aunque el tipo sea desconocido.

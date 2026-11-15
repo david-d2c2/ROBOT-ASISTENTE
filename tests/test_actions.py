@@ -23,6 +23,10 @@ class ActionExtractionTests(unittest.TestCase):
         self.assertIn("calc", actions.describe({"action": "open_app", "app": "calc"}))
         self.assertIn("web", actions.describe({"action": "open_url", "url": "https://x"}))
 
+    def test_describe_unknown_action_never_leaks_raw_dict(self):
+        self.assertNotIn("{", actions.describe({"action": "desconocida", "x": 1}))
+        self.assertIn("desconocida", actions.describe({"action": "desconocida", "x": 1}))
+
 
 class ActionExecutionTests(unittest.TestCase):
     def setUp(self):

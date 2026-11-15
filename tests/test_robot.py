@@ -2,6 +2,7 @@ import os
 import threading
 import time
 import unittest
+from types import SimpleNamespace
 from unittest.mock import patch
 
 os.environ['QT_QPA_PLATFORM'] = 'offscreen'
@@ -180,6 +181,34 @@ class RobotTests(unittest.TestCase):
         self.robot.move(-10000, -10000)
         self.robot.anchor_to_ground()
         self.assertGreaterEqual(self.robot.x(), self.robot.screen().availableGeometry().left())
+
+    def test_action_responses_hide_the_json_protocol(self):
+        """El usuario ve lo que va a pasar, nunca el JSON del protocolo."""
+        self.robot.show()
+        respuesta = 'Voy: {"action": "open_app", "app": "notepad"}'
+        ejecutadas = []
+        self.robot._run_action = ejecutadas.append
+        self.robot.worker = SimpleNamespace(final_query="abre el bloc de notas")
+        self.robot.on_ai_response(respuesta)
+        self.app.processEvents()
+        ultimo = self.robot.bubble.messages[-1]["text"]
+        self.assertNotIn("{", ultimo)
+        self.assertIn("notepad", ultimo)
+        # El JSON crudo se conserva en el historial interno para que el
+        # protocolo del modelo siga funcionando en los siguientes turnos.
+        respuestas = [m["content"] for m in self.robot.history if m["role"] == "assistant"]
+        self.assertIn(respuesta, respuestas)
+        self.assertEqual(len(ejecutadas), 1)
+        self.robot.worker = None
+
+    def test_streaming_action_json_shows_placeholder(self):
+        capturado = []
+        self.robot.worker = SimpleNamespace()
+        self.robot.bubble.update_partial = capturado.append
+        self.robot.on_partial('{"action": "open_app", "app": "calc"')
+        self.assertIn("🌀", capturado[-1])
+        self.assertNotIn("{", capturado[-1])
+        self.robot.worker = None
 
     def test_muting_during_request_skips_voice_and_preserves_answer(self):
         self.send()
