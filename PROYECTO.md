@@ -203,3 +203,18 @@ Pendiente:
 - **3.1 — Manos libres**: wake words («robot, ...»), dictado continuo, habla por frases y paseo con carácter.
 - **3.2 — Plataforma**: skins de color, selector de micrófono, exportar conversación a Markdown y auto-actualizador.
 - **3.3 — Memoria y habilidades**: memoria de largo plazo en SQLite («recuerda que...»), habilidades locales JSON en `skills/`, pomodoro y saludo por hora. Correcciones posteriores a la release: el guardado de ajustes cerraba la app sin aplicar nada (fallo de la 3.2) y la memoria fallaba al usarse desde hilos distintos (sqlite no comparte conexiones).
+
+## 13. Serie 5 (noviembre 2026) — El robot se vuelve proactivo
+
+El salto a 5.0 marca un cambio de papel: de responder a **investigar y avisar**.
+
+- **5.0 — Noticias periódicas**: `core/news.py` (RSS/Atom público, dedup por
+  titular, registro persistente de lo visto) y `core/news_agent.py` (programador
+  con intervalo configurable, hilo de descarga+resumen con su propio AIEngine,
+  horas de silencio). El resumen llega por chat + bandeja + voz y queda como
+  contexto de conversación para «cuéntame más de la segunda». Activable desde
+  ⚙ Ajustes, la bandeja o el menú contextual; sin n8n ni servicios externos.
+
+Pendiente de la serie 5: `TTS_PROVIDER=zonos` contra la API local de ZONOS
+(Pinokio) como voz offline de calidad, y evaluar Haru (conversación full-duplex)
+cuando el modelo madure — hoy exige ~12 GB de VRAM y es base de investigación.

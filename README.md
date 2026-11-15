@@ -46,6 +46,9 @@ Y sí, tiene **humor ácido**: te contesta con sorna, pero siempre te da lo que 
   recordatorios con notificación, notas y **pomodoro** con aviso al terminar.
 - ⏰ **Tareas programadas**: «recuérdame cada día a las 9 la ropa» — la agenda
   persiste entre sesiones; «cancela el aviso de la ropa» la quita.
+- 📰 **Noticias periódicas**: cada 30 min (configurable) consulta tus RSS,
+  descarta lo ya contado y **te lo resume en voz alta** con tu proveedor de IA.
+  Horas de silencio, fuentes propias y apagado desde la bandeja.
 - 🧩 **Habilidades locales**: suelta un JSON en la carpeta `skills/` con disparadores y
   respuesta, y el robot contestará al instante sin llamar a la IA (frases fijas, modos
   demo, atajos de personalidad) — **escrito o dictado por voz**, y pueden ejecutar
@@ -114,7 +117,9 @@ Solo hay que elegir **un** proveedor con `AI_PROVIDER`:
 Todo esto (y más) se puede configurar desde **⚙ Ajustes** sin editar archivos.
 Variables extra: `PERSONA` (acido · normal · tecnico), `CHAT_HISTORY_TURNS` (memoria),
 `HOTKEY` (atajo global de dictado), `REDUCED_MOTION` (menos animación),
-`ZAI_BASE_URL` (plan de código de Z.AI). Ver `.env.example` completo.
+`ZAI_BASE_URL` (plan de código de Z.AI). Noticias: `NEWS_ENABLED`, `NEWS_FEEDS`,
+`NEWS_INTERVAL_MINUTES`, `NEWS_MAX_ITEMS`, `NEWS_START_HOUR`/`NEWS_END_HOUR`.
+Ver `.env.example` completo.
 
 ## 🗣️ Voz y dictado
 
@@ -166,7 +171,7 @@ Variables extra: `PERSONA` (acido · normal · tecnico), `CHAT_HISTORY_TURNS` (m
 ## 🧪 Tests y empaquetado
 
 ```powershell
-# Tests (127) sin abrir ventanas
+# Tests (173) sin abrir ventanas
 $env:QT_QPA_PLATFORM="offscreen"
 .\.venv\Scripts\python.exe -m unittest discover -s tests -v
 
