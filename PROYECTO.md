@@ -235,3 +235,9 @@ modelo madure — hoy exige ~12 GB de VRAM y es base de investigación.
   apaga). Chispas doradas (`_spawn_sparks`) al reanudar el rodillo y al fallar,
   podadas por vida — no por el alto de la ventana, que respira al ocultar la
   burbuja.
+
+- **5.3.1 — Lectura y pulido**: con las noticias el robot se para a leer
+  (periódico holográfico delante, ojos abajo, resumen por escrito en el chat,
+  ~45 s o hasta que lo toques), motor a volumen casi imperceptible
+  (`SFX_VOLUME` como multiplicador global) y botón 🧹 para limpiar la ventana
+  de chat sin perder el contexto de la conversación.

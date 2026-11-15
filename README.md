@@ -30,8 +30,10 @@ Y sí, tiene **humor ácido**: te contesta con sorna, pero siempre te da lo que 
   inercia y aterriza con squash & stretch, y al arrancar a rodar **suelta chispas**.
   Tamaño ajustable con la rueda del ratón.
 - 🔊 **Efectos de sonido** opcionales, generados por el propio programa (sin assets):
-  bip al tocarlo, motorcito al rodar, tono de error y campanita en los avisos —
-  `SFX_ENABLED=0` los silencia.
+  bip al tocarlo, motorcito casi imperceptible al rodar, tono de error y campanita
+  en los avisos — `SFX_ENABLED=0` los silencia y `SFX_VOLUME=0..1` ajusta el volumen.
+- 🧹 **Botón de limpiar el chat** para que no se acumulen respuestas anteriores
+  en la ventana (la conversación sigue viva en memoria).
 - 💬 **Multi proveedor de IA**: Z.AI (GLM), OpenAI, Gemini o modelos locales en tu PC
   (Ollama, LM Studio, llama.cpp).
 - 🎛️ **Panel de ajustes con asistente inicial**: eliges proveedor, pegas tu clave y
@@ -55,7 +57,9 @@ Y sí, tiene **humor ácido**: te contesta con sorna, pero siempre te da lo que 
   persiste entre sesiones; «cancela el aviso de la ropa» la quita.
 - 📰 **Noticias periódicas**: cada 30 min (configurable) consulta tus RSS,
   descarta lo ya contado y **te lo resume en voz alta** con tu proveedor de IA.
-  Horas de silencio, fuentes propias y apagado desde la bandeja.
+  Al leerlas, el robot **se para con un periódico holográfico delante** (sin rodar)
+  y el resumen queda escrito en el chat. Horas de silencio, fuentes propias y
+  apagado desde la bandeja.
 - 🧩 **Habilidades locales**: suelta un JSON en la carpeta `skills/` con disparadores y
   respuesta, y el robot contestará al instante sin llamar a la IA (frases fijas, modos
   demo, atajos de personalidad) — **escrito o dictado por voz**, y pueden ejecutar
