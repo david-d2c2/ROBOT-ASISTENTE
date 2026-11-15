@@ -1,18 +1,17 @@
-Serie 3.4:
+Serie 5.0 — el robot se vuelve proactivo:
 
-- ⏰ **Tareas programadas**: «recuérdame cada día a las 9 la ropa» y el robot
-  te avisa a esa hora (bandeja, chat y voz). La agenda persiste entre
-  sesiones, y «cancela el aviso de la ropa» la quita.
-- 🧩 **Habilidades con acciones**: un JSON en `skills/` puede declarar
-  acciones locales (abrir webs, apps, pomodoros, notas...) que el robot
-  ejecuta siempre pidiendo confirmación; funcionan por texto y por voz.
-- 🧠 **Memoria más flexible**: «olvida que...» borra un recuerdo concreto,
-  «🧠 Ver lo que sabe de mí» muestra la lista completa, y los recuerdos no
-  se duplican.
-- 🎙️ **Micrófono por nombre**: se recuerda el dispositivo elegido por su
-  nombre, inmune a que Windows cambie los índices al reiniciar.
-- 🤝 **CONTRIBUTING.md**: guía para quienes quieran colaborar en el repo
-  público (entorno, tests, convenciones y releases).
-- Incluye todo lo de 3.3.1: memoria entre hilos arreglada y mejoras de
-  robustez (avisos en el chat, pomodoro sustituible, caché de habilidades).
-- 157 tests automatizados.
+- 📰 **Noticias periódicas**: activa «📰 Noticias periódicas» (bandeja, menú o
+  ⚙ Ajustes) y cada 30 minutos el robot consulta tus RSS, descarta lo que ya
+  te contó y **te resume las novedades en voz alta** con tu proveedor de IA
+  (nube o local). Fuentes propias, intervalo configurable, máximo de titulares
+  por resumen y horas de silencio (`NEWS_START_HOUR`/`NEWS_END_HOUR`, por
+  defecto solo de 9 a 21) para que no te despierte. Después del resumen
+  puedes pedirle «cuéntame más de la segunda»: el resumen queda como contexto
+  de la conversación.
+- Sin n8n ni servicios externos: todo dentro de la app, con deduplicación
+  persistente entre reinicios.
+- Incluye todo lo de la serie 3 y 3.4: memoria de largo plazo con
+  «olvida que...», tareas programadas persistentes, habilidades locales con
+  acciones, pomodoro, micrófono por nombre y todos los arreglos de
+  robustez.
+- 173 tests automatizados.
