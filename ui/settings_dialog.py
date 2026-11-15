@@ -143,6 +143,19 @@ class SettingsDialog(QDialog):
         self.persist_check = QCheckBox("Recordar la conversación entre sesiones")
         form.addRow("", self.persist_check)
 
+        self.news_check = QCheckBox("📰 Buscar noticias y resumírmelas en voz alta")
+        form.addRow("", self.news_check)
+
+        self.news_feeds_edit = QLineEdit()
+        self.news_feeds_edit.setToolTip("URLs de RSS separadas por comas; vacío = feeds de actualidad por defecto")
+        form.addRow("RSS de noticias", self.news_feeds_edit)
+
+        self.news_interval_spin = QSpinBox()
+        self.news_interval_spin.setRange(10, 240)
+        self.news_interval_spin.setSuffix(" min")
+        self.news_interval_spin.setToolTip("Cada cuánto buscar novedades (mínimo 10 min)")
+        form.addRow("Cada cuánto", self.news_interval_spin)
+
         layout.addLayout(form)
 
         self.status_label = QLabel("")
@@ -209,6 +222,18 @@ class SettingsDialog(QDialog):
         self.stt_combo.setCurrentIndex(1 if env.get("STT_PROVIDER", "google") == "whisper" else 0)
         self.actions_check.setChecked(bool(value("actions/enabled")))
         self.persist_check.setChecked(bool(value("chat/persist")))
+        stored_news = value("news/enabled")
+        self.news_check.setChecked(
+            bool(stored_news) if stored_news is not None
+            else envfile.read_env().get("NEWS_ENABLED", "").lower() in ("1", "true", "yes", "on")
+        )
+        self.news_feeds_edit.setText(str(value("news/feeds") or "") or envfile.read_env().get("NEWS_FEEDS", ""))
+        stored_interval = value("news/interval_min")
+        try:
+            self.news_interval_spin.setValue(int(stored_interval) if stored_interval is not None
+                                             else int(envfile.read_env().get("NEWS_INTERVAL_MINUTES", "30")))
+        except (TypeError, ValueError):
+            self.news_interval_spin.setValue(30)
 
     def _provider_changed(self):
         _label, code, _key, model, has_base = PROVIDERS[self.provider_combo.currentIndex()]
@@ -317,6 +342,9 @@ class SettingsDialog(QDialog):
         set_value("actions/enabled", self.actions_check.isChecked())
         set_value("actions/allowed_apps", self.apps_edit.text().strip() or "calc,notepad,mspaint,explorer")
         set_value("chat/persist", self.persist_check.isChecked())
+        set_value("news/enabled", self.news_check.isChecked())
+        set_value("news/feeds", self.news_feeds_edit.text().strip())
+        set_value("news/interval_min", self.news_interval_spin.value())
         set_value("setup/done", True)
         super().accept()
 

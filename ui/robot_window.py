@@ -24,6 +24,7 @@ from core.ai_engine import AIEngine
 from core.chat_store import ChatStore
 from core.hands_free import HandsFreeLoop
 from core.memory_store import MemoryStore
+from core.news_agent import NewsAgent
 from core.scheduler import Scheduler
 from core import skills as local_skills
 from core.single_instance import start_instance_server
@@ -72,6 +73,8 @@ class DesktopRobot(RobotPaintingMixin, QWidget):
         self.voice = VoiceEngine()
         self.scheduler = Scheduler(on_due=self._on_task_due)
         desktop_actions.set_scheduler(self.scheduler)
+        self.news_agent = NewsAgent(parent=self)
+        self.news_agent.digest_ready.connect(self._on_news_digest)
         self.speech_enabled = True
         self.worker = None
         self._retired = []
@@ -260,6 +263,10 @@ class DesktopRobot(RobotPaintingMixin, QWidget):
         )
         self.hands_free_action = self.tray_controller.add_action(
             "👂 Modo manos libres", self.toggle_hands_free, checkable=True
+        )
+        self.news_action = self.tray_controller.add_action(
+            "📰 Noticias periódicas", self.toggle_news, checkable=True,
+            checked=self.news_agent.enabled(),
         )
 
     @property
@@ -621,6 +628,9 @@ class DesktopRobot(RobotPaintingMixin, QWidget):
             forget_action = menu.addAction("Olvidar conversación")
             memoria_action = menu.addAction("🧠 Olvidar lo que sabe de mí")
             ver_memoria_action = menu.addAction("🧠 Ver lo que sabe de mí")
+            noticias_action = menu.addAction("📰 Noticias periódicas")
+            noticias_action.setCheckable(True)
+            noticias_action.setChecked(self.news_agent.enabled())
             copy_action = menu.addAction("Copiar última respuesta")
             export_action = menu.addAction("📤 Exportar conversación...")
             settings_action = menu.addAction("⚙ Ajustes...")
@@ -637,6 +647,8 @@ class DesktopRobot(RobotPaintingMixin, QWidget):
                 self.forget_memories()
             elif action == ver_memoria_action:
                 self.show_memories()
+            elif action == noticias_action:
+                self.toggle_news(noticias_action.isChecked(), from_menu=True)
             elif action == copy_action:
                 self.copy_last_answer()
             elif action == export_action:
@@ -1013,6 +1025,29 @@ class DesktopRobot(RobotPaintingMixin, QWidget):
             log.warning("No se pudo avisar en la bandeja de la tarea", exc_info=True)
         self._scheduled_notice(f"⏰ {task.get('message', 'Tarea programada')}")
 
+    # ---- Noticias ----
+
+    def toggle_news(self, enabled: bool, from_menu: bool = False):
+        self.news_agent.set_enabled(enabled)
+        news_action = getattr(self, "news_action", None)
+        if news_action is not None and news_action.isChecked() != enabled:
+            news_action.blockSignals(True)
+            news_action.setChecked(enabled)
+            news_action.blockSignals(False)
+        if enabled and self.worker is None and not self._closing:
+            self._bubble_set_text("Noticias activadas. Cada media hora (o lo que pongas en ajustes) te cuento qué pasa ahí fuera.")
+
+    def _on_news_digest(self, text: str):
+        """El agente de noticias tiene resumen nuevo: chat + bandeja + voz."""
+        try:
+            if self.tray is not None:
+                self.tray.showMessage("📰 Noticias", "Novedades listas. Te las cuento.", self.tray.icon(), 6000)
+        except Exception:
+            log.warning("No se pudo avisar en la bandeja de las noticias", exc_info=True)
+        self._scheduled_notice(f"📰 {text}")
+        # Contexto para que «cuéntame más de la segunda» tenga sentido después.
+        self.history.append({"role": "assistant", "content": f"[Resumen de noticias que acabo de dar]: {text}"})
+
     def _confirm_action(self, action: dict) -> bool:
         box = QMessageBox(self)
         box.setWindowTitle(APP_NAME)
@@ -1096,6 +1131,7 @@ class DesktopRobot(RobotPaintingMixin, QWidget):
             return
         self._save_settings()
         self.anim_timer.stop()
+        self.news_agent.shutdown()
         self.tray.hide()
         event.accept()
         QApplication.instance().quit()
