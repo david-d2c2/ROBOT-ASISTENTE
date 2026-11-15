@@ -33,6 +33,19 @@ class RobotPaintingMixin:
             self._paint_sprite_robot(painter, phase)
         else:
             self._paint_vector_robot(painter, phase)
+        self._draw_sparks(painter)
+
+    def _draw_sparks(self, painter):
+        """Chispitas doradas con brillo, más tenues conforme se apagan."""
+        for chispa in getattr(self, "_sparks", []):
+            alfa = max(0, min(220, int(220 * chispa["life"] / chispa["vida"])))
+            centro = QPointF(chispa["x"], chispa["y"])
+            glow = QRadialGradient(centro, 6)
+            glow.setColorAt(0.0, QColor(255, 205, 95, alfa))
+            glow.setColorAt(1.0, QColor(255, 205, 95, 0))
+            painter.setBrush(QBrush(glow))
+            painter.setPen(Qt.PenStyle.NoPen)
+            painter.drawEllipse(centro, 5, 5)
 
     # ---- Mirada y squash ----
 

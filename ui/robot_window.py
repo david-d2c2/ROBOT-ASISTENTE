@@ -28,6 +28,7 @@ from core.news_agent import NewsAgent
 from core.scheduler import Scheduler
 from core import skills as local_skills
 from core.single_instance import start_instance_server
+from core.sfx import SFX
 from core.version import APP_NAME, __version__
 from core.voice_engine import VoiceEngine
 from core.worker import AIWorker
@@ -117,6 +118,8 @@ class DesktopRobot(RobotPaintingMixin, QWidget):
         self._slide_velocity = 0.0
         self._squash_ticks = 0       # squash & stretch al aterrizar
         self._last_drag_x = None
+        self._sparks: list[dict] = []  # chispas al arrancar a rodar o al fallar
+        self.sfx = SFX()
         self._plan_walk()
 
         self.init_sprite()
@@ -518,6 +521,30 @@ class DesktopRobot(RobotPaintingMixin, QWidget):
         """La mirada sigue el cursor aunque esté fuera de la ventana."""
         self._cursor_local = self.mapFromGlobal(QCursor.pos())
 
+    def _spawn_sparks(self, cantidad: int = 7):
+        """Chispitas doradas desde las ruedas (arranque) o por todo el cuerpo (error)."""
+        for _ in range(cantidad):
+            self._sparks.append({
+                "x": self.width() / 2 + random.uniform(-26, 26),
+                "y": self.height() - self.ROBOT_DRAW_HEIGHT * (0.18 if cantidad <= 8 else 0.5),
+                "vx": random.uniform(-2.2, 2.2),
+                "vy": random.uniform(-3.5, -1.2),
+                "life": random.randint(10, 20),
+                "vida": 18,
+            })
+        self._sparks = self._sparks[-40:]
+
+    def _sparks_step(self):
+        """Las chispas suben, caen y se apagan. Se podan por vida o por salir
+        por arriba — no por el alto de la ventana, que cambia al ocultar la
+        burbuja y mataría chispas perfectamente vivas."""
+        for chispa in self._sparks:
+            chispa["x"] += chispa["vx"]
+            chispa["y"] += chispa["vy"]
+            chispa["vy"] += 0.25
+            chispa["life"] -= 1
+        self._sparks = [c for c in self._sparks if c["life"] > 0 and c["y"] > -20]
+
     def _slide_step(self):
         """Inercia horizontal tras soltar el arrastre; al parar, aterriza con
         squash & stretch y queda anclado al suelo."""
@@ -605,6 +632,7 @@ class DesktopRobot(RobotPaintingMixin, QWidget):
         self._update_look()
         self._mood_step()
         self._night_step()
+        self._sparks_step()
         if self._slide_ticks > 0:
             self._slide_step()
         elif self._squash_ticks > 0:
@@ -646,6 +674,15 @@ class DesktopRobot(RobotPaintingMixin, QWidget):
                     self._solo_text = None
                     self._plan_walk()
                     self._pose_switch = 6
+                    self._spawn_sparks()  # arranca a rodar con chispas
+
+        # Motorcito mientras rueda de verdad (silencioso si SFX desactivado).
+        rodando = (
+            self.state == "MOVING" and self.walk_pose == "profile"
+            and self.drag_pos is None and self._slide_ticks == 0
+            and self.isVisible() and not self.reduced_motion
+        )
+        self.sfx.set_motor(rodando)
 
         # Solo repinta la zona del robot: el resto de la ventana es estática.
         self.update(0, self.height() - self.ROBOT_DRAW_HEIGHT - 12, self.width(), self.ROBOT_DRAW_HEIGHT + 12)
@@ -657,6 +694,7 @@ class DesktopRobot(RobotPaintingMixin, QWidget):
 
     def hideEvent(self, event):
         self.anim_timer.stop()
+        self.sfx.set_motor(False)
         super().hideEvent(event)
 
     def wheelEvent(self, event):
@@ -708,6 +746,7 @@ class DesktopRobot(RobotPaintingMixin, QWidget):
                 return
             self._touch_activity()
             self.set_mood("surprised", ticks=12)
+            self.sfx.play("bip")
             self.drag_pos = event.globalPosition().toPoint() - self.frameGeometry().topLeft()
             self._last_drag_x = self.x()
             self._slide_velocity = 0.0
@@ -1115,6 +1154,7 @@ class DesktopRobot(RobotPaintingMixin, QWidget):
         self._append_message("system", message)
         if not ok:
             self.state = "ERROR"
+            self.sfx.play("error")
             QTimer.singleShot(1500, self.clear_error_state)
 
     def _on_worker_actions(self, actions: list):
@@ -1126,6 +1166,7 @@ class DesktopRobot(RobotPaintingMixin, QWidget):
 
     def _scheduled_notice(self, text: str):
         """Aviso de algo programado (recordatorio, fin de pomodoro) en el chat."""
+        self.sfx.play("campanita")
         self._append_message("assistant", text)
         self._speak_quip(text)
 
@@ -1181,6 +1222,8 @@ class DesktopRobot(RobotPaintingMixin, QWidget):
             return
         self._had_error = True
         self.state = "ERROR"
+        self.sfx.play("error")
+        self._spawn_sparks(10)
         self.bubble.set_status(None)
         if self._answer_received and self.bubble.messages:
             self.bubble.mark_last_answer(message)
@@ -1244,6 +1287,7 @@ class DesktopRobot(RobotPaintingMixin, QWidget):
             return
         self._save_settings()
         self.anim_timer.stop()
+        self.sfx.set_motor(False)
         self.news_agent.shutdown()
         self.tray.hide()
         event.accept()

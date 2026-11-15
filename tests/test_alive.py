@@ -28,6 +28,7 @@ class FakeVoice:
 
 
 def _robot():
+    os.environ["SFX_ENABLED"] = "0"  # sin sonido en los tests
     with patch.object(robot_window, 'AIEngine'), patch.object(robot_window, 'VoiceEngine'):
         robot = robot_window.DesktopRobot()
     robot.anim_timer.stop()
@@ -240,6 +241,54 @@ def _release_event(robot):
         Qt.MouseButton.LeftButton, Qt.MouseButton.NoButton,
         Qt.KeyboardModifier.NoModifier,
     )
+
+
+class SparkTests(unittest.TestCase):
+    @classmethod
+    def setUpClass(cls):
+        cls.app = QApplication.instance() or QApplication([])
+
+    def setUp(self):
+        self.robot = _robot()
+        self.addCleanup(self.robot.close)
+
+    def test_sparks_spawn_and_die(self):
+        self.robot._spawn_sparks(7)
+        self.assertEqual(len(self.robot._sparks), 7)
+        for _ in range(30):  # la vida máxima es 20 ticks: mueren solas
+            self.robot._sparks_step()
+        self.assertEqual(self.robot._sparks, [])
+
+    def test_sparks_fall_with_gravity(self):
+        self.robot._spawn_sparks(20)
+        for chispa in self.robot._sparks:
+            chispa["vy"] = 0.0
+        self.robot._sparks_step()
+        for chispa in self.robot._sparks:
+            self.assertGreaterEqual(chispa["vy"], 0.25)  # la gravedad tira de ellas
+            self.assertGreater(chispa["y"], -20)         # solo se van por vida o por arriba
+
+    def test_cap_of_sparks(self):
+        for _ in range(10):
+            self.robot._spawn_sparks(9)
+        self.assertLessEqual(len(self.robot._sparks), 40)
+
+    def test_walk_resume_spawns_sparks(self):
+        self.robot.show()
+        self.robot.state = "MOVING"
+        self.robot.walk_pose = "front"
+        self.robot._pose_ticks = 1
+        self.robot.update_physics()  # agota la pausa y vuelve a rodar
+        self.robot._pose_ticks = 1
+        self.robot.update_physics()
+        self.assertGreater(len(self.robot._sparks), 0)
+
+    def test_error_spawns_sparks_and_plays_error(self):
+        self.robot.sfx = __import__("unittest.mock", fromlist=["Mock"]).Mock()
+        self.robot.on_worker_error("petó la IA")
+        self.assertEqual(self.robot.state, "ERROR")
+        self.robot.sfx.play.assert_called_once_with("error")
+        self.assertGreater(len(self.robot._sparks), 0)
 
 
 if __name__ == "__main__":

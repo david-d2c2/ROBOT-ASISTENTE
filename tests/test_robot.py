@@ -62,6 +62,7 @@ class RobotTests(unittest.TestCase):
 
     def setUp(self):
         QSettings("RobotAsistente", "RobotAsistente").clear()
+        os.environ["SFX_ENABLED"] = "0"  # sin sonido en los tests
         self.ai = FakeAI()
         self.voice = FakeVoice()
         with patch.object(robot_window, 'AIEngine', return_value=self.ai), patch.object(
