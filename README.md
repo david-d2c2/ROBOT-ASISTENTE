@@ -27,7 +27,11 @@ Y sí, tiene **humor ácido**: te contesta con sorna, pero siempre te da lo que 
   Al caminar se muestra **de perfil con las ruedas girando**, acelera y frena suavemente,
   se para a mirarte de vez en cuando soltando una frase ácida (que **dice en voz alta**) y,
   al hacer clic, se gira de frente para atenderte. **Arrástralo y suelta**: derrapa con
-  inercia y aterriza con squash & stretch. Tamaño ajustable con la rueda del ratón.
+  inercia y aterriza con squash & stretch, y al arrancar a rodar **suelta chispas**.
+  Tamaño ajustable con la rueda del ratón.
+- 🔊 **Efectos de sonido** opcionales, generados por el propio programa (sin assets):
+  bip al tocarlo, motorcito al rodar, tono de error y campanita en los avisos —
+  `SFX_ENABLED=0` los silencia.
 - 💬 **Multi proveedor de IA**: Z.AI (GLM), OpenAI, Gemini o modelos locales en tu PC
   (Ollama, LM Studio, llama.cpp).
 - 🎛️ **Panel de ajustes con asistente inicial**: eliges proveedor, pegas tu clave y
@@ -120,7 +124,7 @@ Solo hay que elegir **un** proveedor con `AI_PROVIDER`:
 Todo esto (y más) se puede configurar desde **⚙ Ajustes** sin editar archivos.
 Variables extra: `PERSONA` (acido · normal · tecnico), `CHAT_HISTORY_TURNS` (memoria),
 `HOTKEY` (atajo global de dictado), `REDUCED_MOTION` (menos animación),
-`NIGHT_MODE` (auto · 1 · 0, modo noche del robot),
+`SFX_ENABLED` (efectos de sonido, 1 por defecto), `NIGHT_MODE` (auto · 1 · 0, modo noche del robot),
 `ZAI_BASE_URL` (plan de código de Z.AI). Noticias: `NEWS_ENABLED`, `NEWS_FEEDS`,
 `NEWS_INTERVAL_MINUTES`, `NEWS_MAX_ITEMS`, `NEWS_START_HOUR`/`NEWS_END_HOUR`.
 Ver `.env.example` completo.
@@ -179,7 +183,7 @@ Ver `.env.example` completo.
 ## 🧪 Tests y empaquetado
 
 ```powershell
-# Tests (189) sin abrir ventanas
+# Tests (200) sin abrir ventanas
 $env:QT_QPA_PLATFORM="offscreen"
 .\.venv\Scripts\python.exe -m unittest discover -s tests -v
 

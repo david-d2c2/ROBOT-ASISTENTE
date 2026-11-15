@@ -1,18 +1,15 @@
-Serie 5.2 — el robot cobra vida:
+Serie 5.3 — sonido y chispas:
 
-- 👀 **Sus ojos siguen tu cursor** allá donde esté, no solo cuando pasas
-  por encima: la mirada es proporcional a la distancia y vuelve al neutro.
-- 👄 **Boca animada**: al hablar, la boca se abre y cierra con la onda de la
-  voz (y sonríe cuando está feliz).
-- 😊 **Emociones**: feliz un rato tras cada respuesta, confuso si cancelas a
-  medias, sorprendido al tocarlo y dormido (con zZ flotando) si llevas un
-  rato sin hacerle caso o es de noche.
-- 🌙 **Modo noche** (22:00–08:00, `NIGHT_MODE`): paseo más lento y cara de
-  sueño; se despierta con cualquier interacción.
-- 🏎️ **Movimiento con física**: el paseo acelera al arrancar y frena antes de
-  pararse a mirarte; las ruedas giran acorde a la velocidad real.
-- ✋ **Arrastre arreglado y con sensación física**: arrastrar al robot se
-  perdió por un refactor en la 3.0 — vuelve a funcionar, y al soltar derrapa
-  con inercia y **aterriza con squash & stretch** (se aplasta y recupera).
-- 189 tests automatizados (12 nuevos de mirada, emociones, noche, easing e
-  inercia, incluida la regresión del arrastre).
+- 🔊 **Efectos de sonido**, generados por el propio programa (sin archivos de
+  audio): un **bip** al tocarlo, un **motorcito** en bucle mientras rueda, un
+  tono de **error** cuando algo falla y una **campanita** para los avisos
+  (recordatorios, pomodoros y noticias). Volumen discreto y
+  `SFX_ENABLED=0` para silenciarlos todo.
+- ✨ **Chispas doradas** al arrancar a rodar tras una pausa y al fallar una
+  consulta: suben, caen con gravedad y se apagan solas.
+- La serie 5 completa al robot como personaje: mira al cursor, habla con
+  boca, tiene emociones, distingue noche de día, se mueve con física y
+  ahora también suena y larga chispas.
+- Incluye todo lo de 5.0–5.2 (noticias periódicas, Zonos local, vida y
+  arrastre arreglado).
+- 200 tests automatizados.

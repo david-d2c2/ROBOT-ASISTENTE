@@ -228,3 +228,10 @@ modelo madure — hoy exige ~12 GB de VRAM y es base de investigación.
   (22:00–08:00: paseo lento y cara de sueño, `NIGHT_MODE`), aceleración y
   frenado suaves del paseo y **arrastre restaurado** (se perdió en el refactor
   de la 3.0) con inercia al soltar y aterrizaje con squash & stretch.
+
+- **5.3 — Sonido y chispas**: efectos generados por código (`core/sfx.py`,
+  senos con envolvente en WAV, sin assets binarios): bip al tocar, motor en
+  bucle mientras rueda, tono de error y campanita en avisos (`SFX_ENABLED=0`
+  apaga). Chispas doradas (`_spawn_sparks`) al reanudar el rodillo y al fallar,
+  podadas por vida — no por el alto de la ventana, que respira al ocultar la
+  burbuja.
