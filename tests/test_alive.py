@@ -291,5 +291,80 @@ class SparkTests(unittest.TestCase):
         self.assertGreater(len(self.robot._sparks), 0)
 
 
+class ReadingTests(unittest.TestCase):
+    """Con las noticias, el robot se para a leer: tablet delante, sin rodar."""
+
+    @classmethod
+    def setUpClass(cls):
+        cls.app = QApplication.instance() or QApplication([])
+
+    def setUp(self):
+        self.robot = _robot()
+        self.addCleanup(self.robot.close)
+
+    def test_digest_stops_the_walk_and_shows_reading_pose(self):
+        self.robot.show()
+        self.robot.state = "MOVING"
+        self.robot.walk_pose = "profile"
+        self.robot._on_news_digest("Han subido los café")
+        self.assertEqual(self.robot.state, "IDLE")
+        self.assertEqual(self.robot.walk_pose, "front")
+        self.assertGreater(self.robot._reading_ticks, 0)
+        # El texto queda por escrito en la conversación.
+        self.assertTrue(any("café" in m["text"] for m in self.robot.bubble.messages))
+
+    def test_robot_does_not_move_while_reading(self):
+        self.robot.show()
+        self.robot.state = "MOVING"
+        self.robot.walk_pose = "profile"
+        self.robot._reading_ticks = 10
+        inicio = self.robot.x()
+        for _ in range(3):
+            self.robot._pose_ticks = 999
+            self.robot.update_physics()
+        self.assertEqual(self.robot.x(), inicio)
+
+    def test_click_takes_the_newspaper_away(self):
+        self.robot._reading_ticks = 500
+        self.robot._touch_activity()  # lo que hace el clic sobre el robot
+        self.assertEqual(self.robot._reading_ticks, 0)
+
+    def test_reading_expires_and_walk_resumes(self):
+        self.robot.show()
+        self.robot._on_news_digest("noticias")
+        self.robot.input_container.hide()  # como cuando pasea solo
+        self.robot._reading_ticks = 1
+        self.robot.state = "IDLE"
+        self.robot.update_physics()
+        self.assertEqual(self.robot._reading_ticks, 0)
+        self.assertEqual(self.robot.state, "MOVING")
+        self.assertEqual(self.robot.walk_pose, "profile")
+
+
+class ChatClearTests(unittest.TestCase):
+    @classmethod
+    def setUpClass(cls):
+        cls.app = QApplication.instance() or QApplication([])
+
+    def setUp(self):
+        self.robot = _robot()
+        self.addCleanup(self.robot.close)
+
+    def test_clear_button_empties_window_but_keeps_context(self):
+        self.robot._append_message("user", "hola")
+        self.robot._append_message("assistant", "qué quieres")
+        self.robot.history.append({"role": "user", "content": "hola"})
+        self.robot._clear_chat_view()
+        self.assertEqual(self.robot.bubble.messages, [])
+        self.assertEqual(self.robot.history, [{"role": "user", "content": "hola"}])
+        self.assertIsNone(self.robot.bubble.solo_text)
+
+    def test_clear_button_exists_and_is_wired(self):
+        self.assertEqual(self.robot.clear_btn.text(), "🧹")
+        self.robot._append_message("user", "hola")
+        self.robot.clear_btn.click()
+        self.assertEqual(self.robot.bubble.messages, [])
+
+
 if __name__ == "__main__":
     unittest.main()

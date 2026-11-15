@@ -78,6 +78,20 @@ class ReproduccionTests(unittest.TestCase):
             motor.set_motor(False)  # parar dos veces es inocuo
             canal.stop.assert_called_once()
 
+    def test_volume_multiplier_applies_to_sounds(self):
+        with patch.dict(os.environ, {"SFX_ENABLED": "1", "SFX_VOLUME": "0.5"}), \
+             patch.object(sfx_mod, "sfx_dir", return_value=Path(tempfile.mkdtemp())):
+            efectos = SFX()
+            self.assertEqual(efectos.volume(), 0.5)
+            efectos.play("bip")
+        self.sound.return_value.set_volume.assert_called_once_with(sfx_mod.VOLUMES["bip"] * 0.5)
+
+    def test_volume_env_invalid_falls_back_to_full(self):
+        with patch.dict(os.environ, {"SFX_VOLUME": "alto"}):
+            self.assertEqual(SFX().volume(), 1.0)
+        with patch.dict(os.environ, {"SFX_VOLUME": "3"}):
+            self.assertEqual(SFX().volume(), 1.0)  # se recorta a 1
+
 
 if __name__ == "__main__":
     unittest.main()

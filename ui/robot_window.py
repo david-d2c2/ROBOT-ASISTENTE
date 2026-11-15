@@ -119,6 +119,7 @@ class DesktopRobot(RobotPaintingMixin, QWidget):
         self._squash_ticks = 0       # squash & stretch al aterrizar
         self._last_drag_x = None
         self._sparks: list[dict] = []  # chispas al arrancar a rodar o al fallar
+        self._reading_ticks = 0       # leyendo el periódico: quieto, con tablet
         self.sfx = SFX()
         self._plan_walk()
 
@@ -211,6 +212,13 @@ class DesktopRobot(RobotPaintingMixin, QWidget):
         self.stop_btn.setAccessibleName("Detener consulta")
         self.stop_btn.setStyleSheet(theme.STOP_QSS())
         self.stop_btn.clicked.connect(self.stop_clicked)
+
+        self.clear_btn = QPushButton("🧹")
+        self.clear_btn.setFixedSize(34, 28)
+        self.clear_btn.setToolTip("Limpiar la ventana de chat (el robot sigue recordando la conversación)")
+        self.clear_btn.setAccessibleName("Limpiar la ventana de chat")
+        self.clear_btn.setStyleSheet(theme.MIC_QSS())
+        self.clear_btn.clicked.connect(self._clear_chat_view)
         self.stop_btn.hide()
 
         self.close_btn = QPushButton("✖")
@@ -236,6 +244,7 @@ class DesktopRobot(RobotPaintingMixin, QWidget):
         input_layout.addWidget(self.capture_btn)
         input_layout.addWidget(self.mic_btn)
         input_layout.addWidget(self.stop_btn)
+        input_layout.addWidget(self.clear_btn)
         input_layout.addWidget(self.voice_btn)
         input_layout.addWidget(self.close_btn)
         self.main_layout.addWidget(self.input_container)
@@ -489,6 +498,8 @@ class DesktopRobot(RobotPaintingMixin, QWidget):
         if self.mood == "sleepy":
             self.mood = None
             self._mood_ticks = 0
+        if self._reading_ticks > 0:
+            self._reading_ticks = 0  # cualquier interacción le quita el periódico
 
     def _mood_step(self):
         if self._mood_ticks > 0:
@@ -637,8 +648,16 @@ class DesktopRobot(RobotPaintingMixin, QWidget):
             self._slide_step()
         elif self._squash_ticks > 0:
             self._squash_ticks -= 1
+        if self._reading_ticks > 0:
+            self._reading_ticks -= 1
+            if self._reading_ticks == 0 and self.input_container.isHidden() and self.worker is None:
+                # Terminó de leer: vuelve a su paseo.
+                self.state = "MOVING"
+                self.walk_pose = "profile"
+                self._plan_walk()
 
         if (self.state == "MOVING" and self.drag_pos is None and self._slide_ticks == 0
+                and self._reading_ticks == 0
                 and self.isVisible() and not self.reduced_motion):
             if self.walk_pose == "profile":
                 # Acelera al arrancar y frena antes de pararse a mirar.
@@ -1056,6 +1075,7 @@ class DesktopRobot(RobotPaintingMixin, QWidget):
         self.mic_btn.setStyleSheet(theme.MIC_QSS())
         self.capture_btn.setStyleSheet(theme.MIC_QSS())
         self.stop_btn.setStyleSheet(theme.STOP_QSS())
+        self.clear_btn.setStyleSheet(theme.MIC_QSS())
         self.voice_btn.setStyleSheet(theme.VOICE_QSS())
         self.close_btn.setStyleSheet(theme.CLOSE_QSS())
         effect = self.bubble.graphicsEffect()
@@ -1198,9 +1218,28 @@ class DesktopRobot(RobotPaintingMixin, QWidget):
                 self.tray.showMessage("📰 Noticias", "Novedades listas. Te las cuento.", self.tray.icon(), 6000)
         except Exception:
             log.warning("No se pudo avisar en la bandeja de las noticias", exc_info=True)
+        # Modo leyendo: se para con el periódico delante y el texto queda a la vista.
+        if self.worker is None and not self._closing:
+            self.state = "IDLE"
+            self.walk_pose = "front"
+            self._solo_text = None
+            self._reading_ticks = 45 * 20  # ~45 s de lectura (un clic lo interrumpe)
+            self._update_bubble_visibility()
         self._scheduled_notice(f"📰 {text}")
         # Contexto para que «cuéntame más de la segunda» tenga sentido después.
         self.history.append({"role": "assistant", "content": f"[Resumen de noticias que acabo de dar]: {text}"})
+
+    def _clear_chat_view(self):
+        """Limpia la ventana (y el historial guardado en disco); la conversación
+        en memoria sigue viva para no perder el contexto."""
+        self.bubble.messages = []
+        self.bubble.set_solo(None)
+        self.bubble.set_status(None)
+        self.bubble.render()
+        self.chat_store.clear()
+        self._solo_text = None
+        self._update_bubble_visibility()
+        self.anchor_to_ground()
 
     def _confirm_action(self, action: dict) -> bool:
         box = QMessageBox(self)

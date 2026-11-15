@@ -18,7 +18,8 @@ from PyQt6.QtCore import QStandardPaths
 log = logging.getLogger(__name__)
 
 SAMPLE_RATE = 22_050
-VOLUMES = {"bip": 0.30, "error": 0.35, "campanita": 0.35, "motor": 0.10}
+# El motor suena de fondo mientras rueda: casi imperceptible a propósito.
+VOLUMES = {"bip": 0.30, "error": 0.35, "campanita": 0.35, "motor": 0.025}
 
 
 def sfx_dir() -> Path:
@@ -100,6 +101,13 @@ class SFX:
     def enabled(self) -> bool:
         return os.getenv("SFX_ENABLED", "1").strip().lower() not in ("0", "off", "false")
 
+    def volume(self) -> float:
+        """Multiplicador global de efectos (SFX_VOLUME, 0..1)."""
+        try:
+            return max(0.0, min(1.0, float(os.getenv("SFX_VOLUME", "1.0"))))
+        except ValueError:
+            return 1.0
+
     def _sound(self, nombre: str):
         if nombre in self._sounds:
             return self._sounds[nombre]
@@ -108,7 +116,7 @@ class SFX:
             if not path.exists():
                 generar_sfx(path, nombre)
             sonido = pygame.mixer.Sound(str(path))
-            sonido.set_volume(VOLUMES.get(nombre, 0.3))
+            sonido.set_volume(VOLUMES.get(nombre, 0.3) * self.volume())
             self._sounds[nombre] = sonido
             return sonido
         except Exception:

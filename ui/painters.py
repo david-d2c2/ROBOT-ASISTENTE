@@ -80,10 +80,16 @@ class RobotPaintingMixin:
             and self.drag_pos is None
             and not self.reduced_motion
         )
-        if walking and self.walk_pose == "profile" and getattr(self, "robot_side", None) is not None:
-            self._paint_side_robot(painter, phase)
+        leyendo = getattr(self, "_reading_ticks", 0) > 0
+        if leyendo or not (walking and self.walk_pose == "profile" and getattr(self, "robot_side", None) is not None):
+            self._paint_front_robot(painter, phase)
+            if leyendo:
+                self._draw_reading_tablet(
+                    painter, phase, self.ROBOT_DRAW_HEIGHT * 0.96,
+                    self.width() / 2, self.height() - self.ROBOT_DRAW_HEIGHT * 0.10,
+                )
             return
-        self._paint_front_robot(painter, phase)
+        self._paint_side_robot(painter, phase)
 
     def _paint_side_robot(self, painter, phase):
         """Rodando de perfil: sprite lateral, ruedas girando y bote de rodadura."""
@@ -212,6 +218,8 @@ class RobotPaintingMixin:
         fx, fy, fw, fh = self.SPRITE_FACE
         center_y = fy + fh / 2
         look_x, look_y = self._look_offsets()
+        if getattr(self, "_reading_ticks", 0) > 0:
+            look_x, look_y = 0.0, 9.0  # leyendo: la vista baja al periódico
         mood = getattr(self, "mood", None)
         eye_cx_left = fx + fw * 0.261
         eye_cx_right = fx + fw * 0.739
@@ -328,6 +336,36 @@ class RobotPaintingMixin:
                     painter.drawEllipse(QPointF(eye_cx + look_x, center_y + look_y), 29, 29)
                     glint(eye_cx + look_x - 9, center_y + look_y - 10)
 
+    def _draw_reading_tablet(self, painter, phase, ancho_robot, centro_x, suelo_y):
+        """Periódico holográfico: el robot se para a leer las noticias."""
+        color = theme.accent()
+        flotar = math.sin(phase * 1.2) * 2
+        ancho, alto = ancho_robot * 0.58, ancho_robot * 0.27
+        rect = QRectF(centro_x - ancho / 2, suelo_y - alto * 1.55 + flotar, ancho, alto)
+
+        glow = QRadialGradient(rect.center(), ancho * 0.75)
+        glow.setColorAt(0.0, QColor(color.red(), color.green(), color.blue(), 60))
+        glow.setColorAt(1.0, QColor(color.red(), color.green(), color.blue(), 0))
+        painter.setBrush(QBrush(glow))
+        painter.setPen(Qt.PenStyle.NoPen)
+        painter.drawEllipse(rect.center(), ancho * 0.75, alto)
+
+        painter.setBrush(QColor(8, 16, 30, 216))
+        painter.setPen(QPen(color, 2))
+        painter.drawRoundedRect(rect, 8, 8)
+
+        margen = ancho * 0.07
+        painter.setPen(Qt.PenStyle.NoPen)
+        painter.setBrush(QBrush(color))
+        painter.setFont(QFont("Segoe UI Emoji", max(8, int(alto * 0.34))))
+        painter.drawText(QRectF(rect.left() + margen, rect.top() + alto * 0.10,
+                                ancho * 0.45, alto * 0.34), Qt.AlignmentFlag.AlignLeft, "📰")
+        suave = QColor(color.red(), color.green(), color.blue(), 130)
+        painter.setBrush(QBrush(suave))
+        for fraccion in (0.48, 0.63, 0.78):
+            painter.drawRect(QRectF(rect.left() + margen, rect.top() + alto * fraccion,
+                                    ancho - 2 * margen, alto * 0.07))
+
     # ---- Robot vectorial de respaldo (si no existe el sprite 3D) ----
 
     def _paint_vector_robot(self, painter, phase):
@@ -349,6 +387,16 @@ class RobotPaintingMixin:
         self._draw_antenna_light(painter)
         self._draw_face(painter, phase)
         painter.restore()
+
+        if getattr(self, "_reading_ticks", 0) > 0:
+            painter.save()
+            painter.translate(origin_x, origin_y + bob)
+            painter.scale(scale, scale)
+            self._draw_reading_tablet(
+                painter, phase, self.ROBOT_VIEWBOX_W, self.ROBOT_VIEWBOX_W / 2,
+                self.ROBOT_VIEWBOX_H * 0.9,
+            )
+            painter.restore()
 
         if self.state == "SPEAKING":
             self._draw_voice_bars(
@@ -420,6 +468,8 @@ class RobotPaintingMixin:
     def _draw_face(self, painter, phase):
         color = self._state_color()
         look_x, look_y = self._look_offsets(unidades=4.0)
+        if getattr(self, "_reading_ticks", 0) > 0:
+            look_x, look_y = 0.0, 4.0  # leyendo: la vista baja al periódico
         mood = getattr(self, "mood", None)
 
         painter.setPen(Qt.PenStyle.NoPen)
