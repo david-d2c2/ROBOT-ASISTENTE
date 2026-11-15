@@ -222,3 +222,9 @@ El salto a 5.0 marca un cambio de papel: de responder a **investigar y avisar**.
 
 Pendiente de la serie 5: evaluar Haru (conversación full-duplex) cuando el
 modelo madure — hoy exige ~12 GB de VRAM y es base de investigación.
+
+- **5.2 — El robot cobra vida**: ojos que siguen el cursor, boca animada al
+  hablar, emociones visibles (feliz/confuso/sorpresa/sueño con zZ), modo noche
+  (22:00–08:00: paseo lento y cara de sueño, `NIGHT_MODE`), aceleración y
+  frenado suaves del paseo y **arrastre restaurado** (se perdió en el refactor
+  de la 3.0) con inercia al soltar y aterrizaje con squash & stretch.

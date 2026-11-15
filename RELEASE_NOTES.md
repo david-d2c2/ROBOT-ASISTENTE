@@ -1,14 +1,18 @@
-Serie 5.1 — tercer motor de voz local:
+Serie 5.2 — el robot cobra vida:
 
-- 🎙️ **Zonos local, de alta calidad y sin Pinokio**: nuevo motor TTS con
-  instalación propia dentro del robot (`pip install -r requirements-zonos.txt`,
-  ~3 GB con PyTorch, GPU recomendable). Se activa con `TTS_PROVIDER=zonos`
-  o desde ⚙ Ajustes, funciona 100 % sin Internet y no depende de ningún
-  servicio externo.
-- 🧬 **Clona tu voz**: apunta `ZONOS_REFERENCE` a un WAV tuyo de 10-30 s y el
-  robot hablará con tu voz; sin referencia, usa una voz neutra en español.
-- Detecta automáticamente GPU (CUDA) y cae a CPU con aviso; el modelo se
-  carga una sola vez y libera VRAM tras cada frase. Mensajes de error
-  claros si falta el paquete o el WAV de referencia.
-- Incluye todo lo de 5.0 (noticias periódicas) y la serie 3 completa.
-- 177 tests automatizados.
+- 👀 **Sus ojos siguen tu cursor** allá donde esté, no solo cuando pasas
+  por encima: la mirada es proporcional a la distancia y vuelve al neutro.
+- 👄 **Boca animada**: al hablar, la boca se abre y cierra con la onda de la
+  voz (y sonríe cuando está feliz).
+- 😊 **Emociones**: feliz un rato tras cada respuesta, confuso si cancelas a
+  medias, sorprendido al tocarlo y dormido (con zZ flotando) si llevas un
+  rato sin hacerle caso o es de noche.
+- 🌙 **Modo noche** (22:00–08:00, `NIGHT_MODE`): paseo más lento y cara de
+  sueño; se despierta con cualquier interacción.
+- 🏎️ **Movimiento con física**: el paseo acelera al arrancar y frena antes de
+  pararse a mirarte; las ruedas giran acorde a la velocidad real.
+- ✋ **Arrastre arreglado y con sensación física**: arrastrar al robot se
+  perdió por un refactor en la 3.0 — vuelve a funcionar, y al soltar derrapa
+  con inercia y **aterriza con squash & stretch** (se aplasta y recupera).
+- 189 tests automatizados (12 nuevos de mirada, emociones, noche, easing e
+  inercia, incluida la regresión del arrastre).

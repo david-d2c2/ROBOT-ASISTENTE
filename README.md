@@ -21,10 +21,13 @@ Y sí, tiene **humor ácido**: te contesta con sorna, pero siempre te da lo que 
 ## ✨ Qué hace
 
 - 🤖 **Personaje 3D** (render estilo Pixar generado con IA) con estados animados: reposo,
-  paseo, escucha, pensamiento, habla y error. Al caminar se muestra **de perfil con las
-  ruedas girando**, se para a mirarte de vez en cuando soltando una frase ácida (que
-  **dice en voz alta**) y, al hacer clic, se gira de frente para atenderte. Tamaño
-  ajustable con la rueda del ratón.
+  paseo, escucha, pensamiento, habla y error. **Sus ojos siguen tu cursor**, habla con
+  **boca animada**, reacciona con **emociones** (feliz al responder, confuso si cancelas,
+  sorpresa al tocarlo, dormido si lo ignoras o es de noche — con zZ y paseo lento).
+  Al caminar se muestra **de perfil con las ruedas girando**, acelera y frena suavemente,
+  se para a mirarte de vez en cuando soltando una frase ácida (que **dice en voz alta**) y,
+  al hacer clic, se gira de frente para atenderte. **Arrástralo y suelta**: derrapa con
+  inercia y aterriza con squash & stretch. Tamaño ajustable con la rueda del ratón.
 - 💬 **Multi proveedor de IA**: Z.AI (GLM), OpenAI, Gemini o modelos locales en tu PC
   (Ollama, LM Studio, llama.cpp).
 - 🎛️ **Panel de ajustes con asistente inicial**: eliges proveedor, pegas tu clave y
@@ -117,6 +120,7 @@ Solo hay que elegir **un** proveedor con `AI_PROVIDER`:
 Todo esto (y más) se puede configurar desde **⚙ Ajustes** sin editar archivos.
 Variables extra: `PERSONA` (acido · normal · tecnico), `CHAT_HISTORY_TURNS` (memoria),
 `HOTKEY` (atajo global de dictado), `REDUCED_MOTION` (menos animación),
+`NIGHT_MODE` (auto · 1 · 0, modo noche del robot),
 `ZAI_BASE_URL` (plan de código de Z.AI). Noticias: `NEWS_ENABLED`, `NEWS_FEEDS`,
 `NEWS_INTERVAL_MINUTES`, `NEWS_MAX_ITEMS`, `NEWS_START_HOUR`/`NEWS_END_HOUR`.
 Ver `.env.example` completo.
@@ -175,7 +179,7 @@ Ver `.env.example` completo.
 ## 🧪 Tests y empaquetado
 
 ```powershell
-# Tests (177) sin abrir ventanas
+# Tests (189) sin abrir ventanas
 $env:QT_QPA_PLATFORM="offscreen"
 .\.venv\Scripts\python.exe -m unittest discover -s tests -v
 
