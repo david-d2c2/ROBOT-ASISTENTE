@@ -1,0 +1,12 @@
+# Voz local de alta calidad con Zonos (opcional, sin Internet ni Pinokio).
+# Motor independiente del robot: se instala en su propio venv.
+#
+# Descarga ~3 GB (PyTorch + pesos del modelo desde Hugging Face en el primer uso).
+# GPU NVIDIA recomendable; sin GPU funciona en CPU (lento).
+#
+# Con GPU (wheels CUDA de PyTorch):
+#   pip install -r requirements-zonos.txt --extra-index-url https://download.pytorch.org/whl/cu121
+# Solo CPU:
+#   pip install -r requirements-zonos.txt
+zonos
+soundfile

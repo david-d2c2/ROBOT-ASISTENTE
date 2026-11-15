@@ -37,6 +37,10 @@ class VoiceEngine:
         self.tts_provider = _env("TTS_PROVIDER", "edge").lower()
         self.voice = _env("TTS_VOICE", "es-ES-ElviraNeural")
         self.piper_voice = _env("PIPER_VOICE", "es_ES-davefx-medium")
+        self.zonos_model = _env("ZONOS_MODEL", "Zyphra/Zonos-v0.1-transformer")
+        self.zonos_reference = _env("ZONOS_REFERENCE", "")  # wav con la voz a clonar (opcional)
+        self.zonos_language = _env("ZONOS_LANGUAGE", "es")
+        self.zonos_device = _env("ZONOS_DEVICE", "auto").lower()
         self.pitch = _env("TTS_PITCH", "+18Hz")
         self.rate = _env("TTS_RATE", "+8%")
         self.stt_provider = _env("STT_PROVIDER", "google").lower()
@@ -54,6 +58,9 @@ class VoiceEngine:
         self._whisper_lock = threading.Lock()
         self._piper = None
         self._piper_lock = threading.Lock()
+        self._zonos = None
+        self._zonos_speaker_embedding = None
+        self._zonos_lock = threading.Lock()
 
     def _resolved_mic_index(self) -> int | None:
         """Índice del micrófono elegido. El nombre manda (el índice guardado
@@ -108,7 +115,7 @@ class VoiceEngine:
         except Exception as exc:
             raise RuntimeError("No se pudo abrir la salida de audio. Revisa tus altavoces.") from exc
 
-        suffix = ".wav" if self.tts_provider == "piper" else ".mp3"
+        suffix = ".wav" if self.tts_provider in ("piper", "zonos") else ".mp3"
         with tempfile.NamedTemporaryFile(delete=False, suffix=suffix) as tmp:
             tmp_path = tmp.name
 
@@ -116,6 +123,8 @@ class VoiceEngine:
             try:
                 if self.tts_provider == "piper":
                     self._generate_piper(speech_text, tmp_path)
+                elif self.tts_provider == "zonos":
+                    self._generate_zonos(speech_text, tmp_path)
                 else:
                     asyncio.run(self._generate_audio(speech_text, tmp_path))
             except RuntimeError:
@@ -275,3 +284,91 @@ class VoiceEngine:
                     self._piper.synthesize(text, wav_file=wav_file)
             except Exception as exc:
                 raise RuntimeError("El motor de voz local falló al sintetizar.") from exc
+
+    # ---- TTS local con Zonos (alta calidad, sin Internet ni Pinokio) ----
+
+    def _ensure_zonos(self):
+        """Carga el modelo Zonos una sola vez (GPU si la hay; la primera vez
+        descarga los pesos desde Hugging Face)."""
+        try:
+            from zonos.model import Zonos
+        except ImportError as exc:
+            raise RuntimeError(
+                "Para usar la voz Zonos instala el paquete opcional: "
+                "pip install -r requirements-zonos.txt"
+            ) from exc
+
+        with self._zonos_lock:
+            if self._zonos is None:
+                device = self._zonos_resolve_device()
+                log.info("Cargando Zonos (%s, %s)...", self.zonos_model, device)
+                try:
+                    self._zonos = Zonos.from_pretrained(self.zonos_model, device=device)
+                except Exception as exc:
+                    log.warning("Zonos no pudo cargar: %s", exc)
+                    raise RuntimeError(
+                        f"No se pudo cargar Zonos ({exc}). La primera vez descarga "
+                        "varios GB desde Hugging Face; revisa conexión y VRAM."
+                    ) from exc
+        return self._zonos
+
+    def _zonos_resolve_device(self) -> str:
+        if self.zonos_device not in ("", "auto"):
+            return self.zonos_device
+        try:
+            import torch
+            if torch.cuda.is_available():
+                return "cuda"
+        except Exception:
+            pass
+        log.info("Zonos sin GPU: funcionará en CPU (lento pero válido)")
+        return "cpu"
+
+    def _zonos_speaker(self):
+        """Embedding de la voz a clonar desde un WAV de referencia (opcional)."""
+        if not self.zonos_reference:
+            return None
+        with self._zonos_lock:
+            if self._zonos_speaker_embedding is None:
+                try:
+                    import torch
+                    import soundfile as sf
+                    from zonos.conditioning import make_speaker
+                    wav, rate = sf.read(self.zonos_reference, dtype="float32")
+                    self._zonos_speaker_embedding = make_speaker(torch.from_numpy(wav), rate)
+                except Exception as exc:
+                    log.warning("Referencia de voz Zonos ilegible: %s", exc)
+                    raise RuntimeError(
+                        f"No pude leer el WAV de referencia «{self.zonos_reference}»."
+                    ) from exc
+        return self._zonos_speaker_embedding
+
+    def _generate_zonos(self, text: str, output_file: str):
+        model = self._ensure_zonos()
+        try:
+            import soundfile as sf
+            import torch
+            from zonos.conditioning import make_cond_dict
+            conditioning = model.prepare_conditioning(
+                make_cond_dict(
+                    text=text,
+                    speaker=self._zonos_speaker(),
+                    language=self.zonos_language,
+                )
+            )
+            codes = model.generate(conditioning)
+            wavs = model.autoencoder.decode(codes).cpu()
+            audio = wavs[0].numpy()
+            rate = int(getattr(model.autoencoder, "sample_rate", 44_100) or 44_100)
+            sf.write(output_file, audio, rate)
+            del codes, wavs, audio  # liberar VRAM cuanto antes
+            if torch.cuda.is_available():
+                torch.cuda.empty_cache()
+        except RuntimeError:
+            raise
+        except Exception as exc:
+            log.warning("Zonos falló al sintetizar: %s", exc)
+            raise RuntimeError(
+                "El motor Zonos falló al sintetizar. Si tu versión del paquete "
+                "cambia la API, actualiza requirements-zonos.txt."
+            ) from exc

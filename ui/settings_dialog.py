@@ -125,6 +125,7 @@ class SettingsDialog(QDialog):
         self.tts_provider_combo = QComboBox()
         self.tts_provider_combo.addItem("Edge TTS (Internet)")
         self.tts_provider_combo.addItem("Piper local (sin conexión)")
+        self.tts_provider_combo.addItem("Zonos local (alta calidad, sin conexión)")
         self.tts_provider_combo.currentIndexChanged.connect(self._tts_provider_changed)
         form.addRow("Motor de voz", self.tts_provider_combo)
 
@@ -212,12 +213,17 @@ class SettingsDialog(QDialog):
             if position > 0:
                 self.mic_combo.setCurrentIndex(position)
         self.apps_edit.setText(str(value("actions/allowed_apps") or ""))
-        self.tts_provider_combo.setCurrentIndex(1 if env.get("TTS_PROVIDER", "edge") == "piper" else 0)
-        self.tts_edit.setText(
-            env.get("PIPER_VOICE", "es_ES-davefx-medium")
-            if self.tts_provider_combo.currentIndex() == 1
-            else env.get("TTS_VOICE", "es-ES-ElviraNeural")
-        )
+        provider_voz = env.get("TTS_PROVIDER", "edge")
+        indice = {"piper": 1, "zonos": 2}.get(provider_voz, 0)
+        self.tts_provider_combo.setCurrentIndex(indice)
+        if indice == 1:
+            self.tts_edit.setText(env.get("PIPER_VOICE", "es_ES-davefx-medium"))
+        elif indice == 2:
+            self.tts_edit.setText(
+                env.get("ZONOS_REFERENCE") or env.get("ZONOS_MODEL", "Zyphra/Zonos-v0.1-transformer")
+            )
+        else:
+            self.tts_edit.setText(env.get("TTS_VOICE", "es-ES-ElviraNeural"))
         self._tts_provider_changed()
         self.stt_combo.setCurrentIndex(1 if env.get("STT_PROVIDER", "google") == "whisper" else 0)
         self.actions_check.setChecked(bool(value("actions/enabled")))
@@ -248,17 +254,25 @@ class SettingsDialog(QDialog):
     # ---- Prueba de conexión ----
 
     def _tts_provider_changed(self):
-        piper = self.tts_provider_combo.currentIndex() == 1
         text = self.tts_edit.text().strip()
-        edge_default, piper_default = "es-ES-ElviraNeural", "es_ES-davefx-medium"
-        if piper:
-            if not text or text == edge_default:
-                self.tts_edit.setText(piper_default)
-            self.tts_edit.setPlaceholderText(piper_default)
-        else:
-            if not text or text == piper_default:
-                self.tts_edit.setText(edge_default)
-            self.tts_edit.setPlaceholderText(edge_default)
+        por_defecto = {
+            0: ("es-ES-ElviraNeural", "es-ES-ElviraNeural"),
+            1: ("es_ES-davefx-medium", "es_ES-davefx-medium"),
+            2: ("Zyphra/Zonos-v0.1-transformer", "Zyphra/Zonos-v0.1-transformer"),
+        }
+        actual = por_defecto.get(self.tts_provider_combo.currentIndex())
+        if actual is None:
+            return
+        por_defecto_previo = {v[0] for v in por_defecto.values()}
+        if not text or text in por_defecto_previo:
+            self.tts_edit.setText(actual[0])
+        self.tts_edit.setPlaceholderText(actual[1])
+        es_zonos = self.tts_provider_combo.currentIndex() == 2
+        self.tts_edit.setToolTip(
+            "Zonos: modelo de Hugging Face (opcionalmente «ruta\a\voz.wav» para clonar tu voz en ZONOS_REFERENCE)"
+            if es_zonos else
+            "Edge: nombre de voz. Piper: idioma_PAIS-locutor-calidad"
+        )
 
     def _populate_mics(self):
         self.mic_combo.addItem("Predeterminado")
@@ -300,12 +314,20 @@ class SettingsDialog(QDialog):
             "AI_PROVIDER": code,
             "PERSONA": PERSONA_LABELS[self.persona_combo.currentIndex()][1],
             "CHAT_HISTORY_TURNS": str(self.history_spin.value()),
-            "TTS_PROVIDER": "piper" if self.tts_provider_combo.currentIndex() == 1 else "edge",
+            "TTS_PROVIDER": {1: "piper", 2: "zonos"}.get(
+                self.tts_provider_combo.currentIndex(), "edge"
+            ),
             "STT_PROVIDER": "whisper" if self.stt_combo.currentIndex() == 1 else "google",
         }
         voice_value = self.tts_edit.text().strip()
-        if self.tts_provider_combo.currentIndex() == 1:
+        motor = self.tts_provider_combo.currentIndex()
+        if motor == 1:
             updates["PIPER_VOICE"] = voice_value or "es_ES-davefx-medium"
+        elif motor == 2:
+            if voice_value.lower().endswith(".wav"):
+                updates["ZONOS_REFERENCE"] = voice_value
+            else:
+                updates["ZONOS_MODEL"] = voice_value or "Zyphra/Zonos-v0.1-transformer"
         else:
             updates["TTS_VOICE"] = voice_value or "es-ES-ElviraNeural"
         for _l, provider_code, provider_key, _m, _b in PROVIDERS:
