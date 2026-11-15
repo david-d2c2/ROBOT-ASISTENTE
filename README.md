@@ -123,12 +123,16 @@ Ver `.env.example` completo.
 
 ## 🗣️ Voz y dictado
 
-- **Respuestas habladas** con dos motores:
+- **Respuestas habladas** con tres motores:
   - **Edge TTS** (Internet, por defecto): `TTS_VOICE`, `TTS_RATE`, `TTS_PITCH`.
   - **Piper local, sin conexión**: `TTS_PROVIDER=piper` y
     `pip install -r requirements-tts.txt`. La voz `es_ES-davefx-medium` se
     descarga sola la primera vez (~65 MB) y luego funciona offline. Cambiable
     desde ⚙ Ajustes.
+  - **Zonos local, alta calidad** (motor independiente, sin Pinokio ni servicios
+    externos): `pip install -r requirements-zonos.txt` (~3 GB, GPU recomendable)
+    y `TTS_PROVIDER=zonos`. Puede **clonar tu voz** desde un WAV de referencia
+    (`ZONOS_REFERENCE`); sin referencia, voz neutra en español.
 - **Dictado**: Google por defecto, o **100 % local** con
   [faster-whisper](https://github.com/SYSTRAN/faster-whisper):
 
@@ -171,7 +175,7 @@ Ver `.env.example` completo.
 ## 🧪 Tests y empaquetado
 
 ```powershell
-# Tests (173) sin abrir ventanas
+# Tests (177) sin abrir ventanas
 $env:QT_QPA_PLATFORM="offscreen"
 .\.venv\Scripts\python.exe -m unittest discover -s tests -v
 

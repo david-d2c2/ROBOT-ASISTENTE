@@ -215,6 +215,10 @@ El salto a 5.0 marca un cambio de papel: de responder a **investigar y avisar**.
   contexto de conversación para «cuéntame más de la segunda». Activable desde
   ⚙ Ajustes, la bandeja o el menú contextual; sin n8n ni servicios externos.
 
-Pendiente de la serie 5: `TTS_PROVIDER=zonos` contra la API local de ZONOS
-(Pinokio) como voz offline de calidad, y evaluar Haru (conversación full-duplex)
-cuando el modelo madure — hoy exige ~12 GB de VRAM y es base de investigación.
+- **5.1 — Voz Zonos local**: tercer motor TTS (`TTS_PROVIDER=zonos`) con motor
+  propio e independiente en el venv del robot (`requirements-zonos.txt`, sin
+  Pinokio ni servicios externos). Clonación de voz opcional por WAV de
+  referencia, GPU si la hay con fallback a CPU.
+
+Pendiente de la serie 5: evaluar Haru (conversación full-duplex) cuando el
+modelo madure — hoy exige ~12 GB de VRAM y es base de investigación.
