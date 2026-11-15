@@ -2,11 +2,22 @@
 import math
 
 from PyQt6.QtCore import QPointF, QRectF, Qt
-from PyQt6.QtGui import QBrush, QColor, QPainter, QPen, QPixmap, QRadialGradient
+from PyQt6.QtGui import QBrush, QColor, QFont, QPainter, QPen, QPixmap, QRadialGradient
 
 from ui import theme
 
 SPRITE_SCALE_BASE = 512.0
+
+
+def look_towards(cx: float, cy: float, px: float, py: float, radio: float = 260.0):
+    """Vector de mirada (-1..1) desde un centro hacia un punto: más cerca del
+    centro, mirada más neutra; lejos, mirada plena en esa dirección."""
+    dx, dy = px - cx, py - cy
+    dist = math.hypot(dx, dy)
+    if dist < 2:
+        return 0.0, 0.0
+    alcance = min(1.0, dist / radio)
+    return dx / dist * alcance, dy / dist * alcance
 
 
 class RobotPaintingMixin:
@@ -22,6 +33,31 @@ class RobotPaintingMixin:
             self._paint_sprite_robot(painter, phase)
         else:
             self._paint_vector_robot(painter, phase)
+
+    # ---- Mirada y squash ----
+
+    def _look_offsets(self, unidades: float = 9.0):
+        """Los ojos miran al cursor; sin física corrida aún, comportamiento
+        clásico (dirección de marcha o hover)."""
+        cursor = getattr(self, "_cursor_local", None)
+        if cursor is None:
+            factor = unidades / 9.0
+            if self.state == "MOVING":
+                return 8 * self.direction * factor, 0.0
+            return ((5 if self.hovered else 0) * factor, (-3 if self.hovered else 0) * factor)
+        lx, ly = look_towards(
+            self.width() / 2, self.height() - self.ROBOT_DRAW_HEIGHT * 0.55,
+            cursor.x(), cursor.y(),
+        )
+        return lx * unidades, ly * unidades * 0.7
+
+    def _squash_scale(self):
+        """(sx, sy) del squash & stretch al aterrizar: se aplasta y recupera."""
+        ticks = getattr(self, "_squash_ticks", 0)
+        if ticks <= 0:
+            return 1.0, 1.0
+        amount = ticks / 8.0
+        return 1.0 + 0.10 * amount, 1.0 - 0.16 * amount
 
     # ---- Robot 3D: render generado + ojos y antena animados por encima ----
 
@@ -45,8 +81,11 @@ class RobotPaintingMixin:
         grow = 1.0
         if self._pose_switch > 0:
             grow = 1.0 - 0.85 * (self._pose_switch / 6.0)
-        target_w = size * grow
+        sx, sy = self._squash_scale()
+        target_w = size * grow * sx
+        draw_h = size * sy
         draw_x = self.width() / 2 - target_w / 2
+        draw_y = origin_y + bob + (size - draw_h)
 
         shadow_center_y = origin_y + size - 6
         shadow = QRadialGradient(QPointF(self.width() / 2, shadow_center_y), size * 0.48)
@@ -56,17 +95,17 @@ class RobotPaintingMixin:
         painter.setBrush(QBrush(shadow))
         painter.setPen(Qt.PenStyle.NoPen)
         painter.drawEllipse(
-            QPointF(self.width() / 2, shadow_center_y), size * 0.48, size * 0.11
+            QPointF(self.width() / 2, shadow_center_y), size * 0.48 * sx, size * 0.11
         )
 
         pixmap = self._side_pixmap()
         painter.drawPixmap(
-            QRectF(draw_x, origin_y + bob, target_w, size), pixmap, QRectF(pixmap.rect())
+            QRectF(draw_x, draw_y, target_w, draw_h), pixmap, QRectF(pixmap.rect())
         )
 
         painter.save()
-        painter.translate(draw_x, origin_y + bob)
-        painter.scale(target_w / SPRITE_SCALE_BASE, size / SPRITE_SCALE_BASE)
+        painter.translate(draw_x, draw_y)
+        painter.scale(target_w / SPRITE_SCALE_BASE, draw_h / SPRITE_SCALE_BASE)
         self._draw_side_wheels(painter)
         painter.restore()
 
@@ -97,6 +136,10 @@ class RobotPaintingMixin:
         origin_x = self.width() / 2 - size / 2
         origin_y = self.height() - self.ROBOT_DRAW_HEIGHT + (self.ROBOT_DRAW_HEIGHT - size)
         bob = self._body_bob(phase)
+        sx, sy = self._squash_scale()
+        draw_w, draw_h = size * sx, size * sy
+        draw_x = origin_x - (draw_w - size) / 2
+        draw_y = origin_y + bob + (size - draw_h)
 
         shadow_center_y = origin_y + size - 6
         shadow = QRadialGradient(QPointF(origin_x + size / 2, shadow_center_y), size * 0.48)
@@ -106,7 +149,7 @@ class RobotPaintingMixin:
         painter.setBrush(QBrush(shadow))
         painter.setPen(Qt.PenStyle.NoPen)
         painter.drawEllipse(
-            QPointF(origin_x + size / 2, shadow_center_y), size * 0.48, size * 0.11
+            QPointF(origin_x + size / 2, shadow_center_y), size * 0.48 * sx, size * 0.11
         )
 
         if self.state == "LISTENING":
@@ -119,14 +162,14 @@ class RobotPaintingMixin:
             painter.drawEllipse(center, radius, radius)
 
         painter.drawPixmap(
-            QRectF(origin_x, origin_y + bob, size, size),
+            QRectF(draw_x, draw_y, draw_w, draw_h),
             self.robot_sprite,
             QRectF(self.robot_sprite.rect()),
         )
 
         painter.save()
-        painter.translate(origin_x, origin_y + bob)
-        painter.scale(size / SPRITE_SCALE_BASE, size / SPRITE_SCALE_BASE)
+        painter.translate(draw_x, draw_y)
+        painter.scale(draw_w / SPRITE_SCALE_BASE, draw_h / SPRITE_SCALE_BASE)
         self._draw_sprite_antenna(painter)
         self._draw_sprite_face(painter, phase)
         painter.restore()
@@ -155,10 +198,11 @@ class RobotPaintingMixin:
         color = self._state_color()
         fx, fy, fw, fh = self.SPRITE_FACE
         center_y = fy + fh / 2
-        look_x = 8 * self.direction if self.state == "MOVING" else (5 if self.hovered else 0)
-        look_y = -5 if self.hovered else 0
+        look_x, look_y = self._look_offsets()
+        mood = getattr(self, "mood", None)
         eye_cx_left = fx + fw * 0.261
         eye_cx_right = fx + fw * 0.739
+        mouth_y = fy + fh * 0.80
 
         painter.setPen(Qt.PenStyle.NoPen)
         painter.setBrush(QBrush(color))
@@ -185,6 +229,18 @@ class RobotPaintingMixin:
             painter.restore()
             painter.setBrush(QBrush(color))
 
+        def smile(cx, width=54, pen_width=9):
+            painter.save()
+            painter.setPen(QPen(color, pen_width, Qt.PenStyle.SolidLine, Qt.PenCapStyle.RoundCap))
+            painter.setBrush(Qt.BrushStyle.NoBrush)
+            painter.drawArc(QRectF(cx - width / 2, mouth_y - width * 0.3, width, width * 0.55),
+                            180 * 16, 180 * 16)
+            painter.restore()
+            painter.setBrush(QBrush(color))
+
+        def mouth_open(cx, ry, rx=21.0):
+            painter.drawEllipse(QPointF(cx + look_x * 0.35, mouth_y + look_y * 0.25), rx, ry)
+
         if self.state == "THINKING":
             offset_y = math.sin(phase * 2) * 12
             for eye_cx, radius, direction in ((eye_cx_left, 26, 1), (eye_cx_right, 20, -1)):
@@ -204,8 +260,52 @@ class RobotPaintingMixin:
                     21, 21,
                 )
                 glint(eye_cx + look_x - 8, center_y + look_y - height / 4)
+            if mood == "happy":
+                smile(fx + fw / 2 + look_x * 0.35)
+            else:
+                # La boca se abre y cierra con la onda de la voz.
+                mouth_open(fx + fw / 2, 7 + (math.sin(phase * 4) + 1) * 8)
         else:
-            if self.is_blinking:
+            if mood == "happy":
+                for eye_cx in (eye_cx_left, eye_cx_right):
+                    painter.drawEllipse(QPointF(eye_cx + look_x, center_y + look_y), 29, 29)
+                    glint(eye_cx + look_x - 9, center_y + look_y - 10)
+                smile(fx + fw / 2 + look_x * 0.35)
+            elif mood == "surprised":
+                for eye_cx in (eye_cx_left, eye_cx_right):
+                    painter.drawEllipse(QPointF(eye_cx + look_x, center_y + look_y), 33, 33)
+                    glint(eye_cx + look_x - 10, center_y + look_y - 12)
+                mouth_open(fx + fw / 2, 13, rx=13)
+            elif mood == "confused":
+                painter.drawEllipse(QPointF(eye_cx_left + look_x, center_y + look_y), 29, 29)
+                glint(eye_cx_left + look_x - 9, center_y + look_y - 10)
+                painter.drawRoundedRect(
+                    QRectF(eye_cx_right + look_x - 22, center_y + look_y - 7, 44, 13), 6, 6
+                )
+                painter.save()
+                painter.setPen(QPen(color, 8, Qt.PenStyle.SolidLine, Qt.PenCapStyle.RoundCap))
+                painter.drawLine(
+                    QPointF(fx + fw / 2 - 13 + look_x, mouth_y + 5),
+                    QPointF(fx + fw / 2 + 13 + look_x, mouth_y - 5),
+                )
+                painter.restore()
+            elif mood == "sleepy":
+                # Ojos caídos a media asta y zZ flotando junto a la antena.
+                for eye_cx in (eye_cx_left, eye_cx_right):
+                    painter.drawRoundedRect(
+                        QRectF(eye_cx + look_x - 26, center_y + 8 + look_y, 52, 13), 6, 6
+                    )
+                ax, ay, _radio = self.SPRITE_ANTENNA
+                painter.save()
+                painter.setPen(QPen(color, 5))
+                floateo = math.sin(phase * 1.5) * 4
+                painter.setFont(QFont("Arial", 30))
+                painter.drawText(QPointF(ax + 34, ay + 10 + floateo), "z")
+                painter.setFont(QFont("Arial", 22))
+                painter.drawText(QPointF(ax + 64, ay - 18 - floateo), "Z")
+                painter.restore()
+                painter.setPen(Qt.PenStyle.NoPen)
+            elif self.is_blinking:
                 for eye_cx in (eye_cx_left, eye_cx_right):
                     painter.drawRoundedRect(
                         QRectF(eye_cx + look_x - 26, center_y + look_y - 5, 52, 10), 5, 5
@@ -306,8 +406,8 @@ class RobotPaintingMixin:
 
     def _draw_face(self, painter, phase):
         color = self._state_color()
-        look_x = 4 * self.direction if self.state == "MOVING" else (2 if self.hovered else 0)
-        look_y = -2 if self.hovered else 0
+        look_x, look_y = self._look_offsets(unidades=4.0)
+        mood = getattr(self, "mood", None)
 
         painter.setPen(Qt.PenStyle.NoPen)
         painter.setBrush(QBrush(color))
@@ -320,6 +420,15 @@ class RobotPaintingMixin:
                 painter.drawLine(QPointF(eye_cx - 7.5, 66 + look_y), QPointF(eye_cx + 7.5, 80 + look_y))
                 painter.drawLine(QPointF(eye_cx + 7.5, 66 + look_y), QPointF(eye_cx - 7.5, 80 + look_y))
             return
+
+        def smile():
+            painter.save()
+            painter.setPen(QPen(color, 3.5, Qt.PenStyle.SolidLine, Qt.PenCapStyle.RoundCap))
+            painter.setBrush(Qt.BrushStyle.NoBrush)
+            painter.drawArc(QRectF(86, 88, 28, 15), 180 * 16, 180 * 16)
+            painter.restore()
+            painter.setPen(Qt.PenStyle.NoPen)
+            painter.setBrush(QBrush(color))
 
         if self.state == "THINKING":
             offset_y = math.sin(phase * 2) * 4
@@ -337,6 +446,19 @@ class RobotPaintingMixin:
             for eye_cx in (69.5, 113.5):
                 painter.drawRoundedRect(QRectF(eye_cx + look_x, 73 - height / 2 + look_y, 17, height), 8.5, 8.5)
                 self._eye_glint(painter, eye_cx + 4 + look_x, 73 - height / 4 + look_y)
+            if mood == "happy":
+                smile()
+            else:
+                boca_h = 4 + (math.sin(phase * 4) + 1) * 3.5
+                painter.drawEllipse(QPointF(100 + look_x * 0.4, 95), 8, boca_h)
+        elif mood == "happy":
+            for eye_cx in (69.5, 113.5):
+                painter.drawRoundedRect(QRectF(eye_cx + look_x, 60.5 + look_y, 17, 25), 8.5, 8.5)
+                self._eye_glint(painter, eye_cx + 4 + look_x, 67.5 + look_y)
+            smile()
+        elif mood == "sleepy":
+            for eye_cx in (69.5, 113.5):
+                painter.drawRoundedRect(QRectF(eye_cx + look_x, 72 + look_y, 17, 7), 3.5, 3.5)
         else:
             if self.is_blinking:
                 for eye_cx in (69.5, 113.5):

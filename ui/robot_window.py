@@ -10,7 +10,7 @@ import time
 from pathlib import Path
 
 from PyQt6.QtCore import Qt, QTimer, QRect
-from PyQt6.QtGui import QCloseEvent, QPixmap
+from PyQt6.QtGui import QCloseEvent, QCursor, QPixmap
 from PyQt6.QtSvg import QSvgRenderer
 from PyQt6.QtWidgets import (
     QApplication, QCheckBox, QWidget, QVBoxLayout, QHBoxLayout,
@@ -105,6 +105,18 @@ class DesktopRobot(RobotPaintingMixin, QWidget):
         self._pose_switch = 0        # transición de giro (encoge/estira)
         self._bubble_visible = True
         self._quip_busy = False      # hay una frase del paseo sonando
+        # Vida: mirada al cursor, emociones, modo noche y física de aterrizaje.
+        self._cursor_local = None    # posición del ratón en coords de ventana
+        self.mood = None             # happy | confused | surprised | sleepy
+        self._mood_ticks = 0
+        self._last_activity = time.monotonic()
+        self._night = False
+        self._night_recheck = 0
+        self._current_speed = 0.0    # el paseo acelera y frena suave
+        self._slide_ticks = 0        # inercia al soltar el arrastre
+        self._slide_velocity = 0.0
+        self._squash_ticks = 0       # squash & stretch al aterrizar
+        self._last_drag_x = None
         self._plan_walk()
 
         self.init_sprite()
@@ -462,6 +474,66 @@ class DesktopRobot(RobotPaintingMixin, QWidget):
         if self._pose_switch > 0:
             self._pose_switch -= 1
 
+    # ---- Vida: emociones, mirada, noche y aterrizaje ----
+
+    def set_mood(self, mood, ticks=40):
+        """Cambia la emoción visible un rato; 'sleepy' persiste hasta que vuelvas."""
+        self.mood = mood
+        self._mood_ticks = ticks
+
+    def _touch_activity(self):
+        self._last_activity = time.monotonic()
+        if self.mood == "sleepy":
+            self.mood = None
+            self._mood_ticks = 0
+
+    def _mood_step(self):
+        if self._mood_ticks > 0:
+            self._mood_ticks -= 1
+            if self._mood_ticks == 0 and self.mood != "sleepy":
+                self.mood = None
+        if self.mood in (None, "sleepy") and self.worker is None:
+            dormido = self._night or time.monotonic() - self._last_activity > 180
+            if dormido and self.mood != "sleepy":
+                self.mood = "sleepy"
+            elif not dormido and self.mood == "sleepy":
+                self.mood = None
+
+    def _night_step(self):
+        """Noche (22:00–08:00 por defecto): paseo lento y cara de sueño."""
+        if self._night_recheck > 0:
+            self._night_recheck -= 1
+            return
+        self._night_recheck = 120  # se reevalúa cada minuto aprox.
+        modo = app_settings.env("NIGHT_MODE", "auto").lower()
+        if modo in ("0", "off", "false"):
+            self._night = False
+        elif modo in ("1", "on", "true"):
+            self._night = True
+        else:
+            hour = time.localtime().tm_hour
+            self._night = hour < 8 or hour >= 22
+
+    def _update_look(self):
+        """La mirada sigue el cursor aunque esté fuera de la ventana."""
+        self._cursor_local = self.mapFromGlobal(QCursor.pos())
+
+    def _slide_step(self):
+        """Inercia horizontal tras soltar el arrastre; al parar, aterriza con
+        squash & stretch y queda anclado al suelo."""
+        self._slide_ticks -= 1
+        new_x = self.x() + int(round(self._slide_velocity))
+        self._slide_velocity *= 0.72
+        if abs(self._slide_velocity) < 0.8 or not (self.screen_left <= new_x <= self.screen_right):
+            self._slide_ticks = 0
+        self.move(max(self.screen_left, min(new_x, self.screen_right)),
+                  self.screen_bottom - self.height())
+        self.wheel_angle = (self.wheel_angle + self._slide_velocity * 3.0) % 360
+        if self._slide_ticks == 0:
+            self._slide_velocity = 0.0
+            self._squash_ticks = 8
+            self.anchor_to_ground()
+
     def _respond_locally(self, prompt: str, skill: dict):
         """Habilidad local: respuesta instantánea sin proveedor de IA."""
         log.info("Habilidad local '%s' activada", skill["name"])
@@ -530,21 +602,38 @@ class DesktopRobot(RobotPaintingMixin, QWidget):
                 self.blink_counter = 0
         self._pose_switch_step()
         self._update_bubble_visibility()
+        self._update_look()
+        self._mood_step()
+        self._night_step()
+        if self._slide_ticks > 0:
+            self._slide_step()
+        elif self._squash_ticks > 0:
+            self._squash_ticks -= 1
 
-        if self.state == "MOVING" and self.drag_pos is None and self.isVisible() and not self.reduced_motion:
+        if (self.state == "MOVING" and self.drag_pos is None and self._slide_ticks == 0
+                and self.isVisible() and not self.reduced_motion):
             if self.walk_pose == "profile":
-                new_x = self.x() + (self.speed * self.direction)
+                # Acelera al arrancar y frena antes de pararse a mirar.
+                objetivo = self.speed * (0.55 if self._night else 1.0)
+                if self._pose_ticks < 30:
+                    objetivo = min(objetivo, 0.9)
+                paso = max(-0.25, min(0.25, objetivo - self._current_speed))
+                self._current_speed += paso
+                new_x = self.x() + (self._current_speed * self.direction)
                 if new_x >= self.screen_right:
                     self.direction = -1
                 elif new_x <= self.screen_left:
                     self.direction = 1
-                self.move(max(self.screen_left, min(new_x, self.screen_right)), self.screen_bottom - self.height())
-                self.wheel_angle = (self.wheel_angle + 10 * self.direction) % 360
+                self.move(int(round(max(self.screen_left, min(new_x, self.screen_right)))),
+                          self.screen_bottom - self.height())
+                avance = self._current_speed / max(self.speed, 0.5)
+                self.wheel_angle = (self.wheel_angle + 10.0 * avance * self.direction) % 360
                 self._pose_ticks -= 1
                 if self._pose_ticks <= 0:
                     # Se para y mira de frente un momento, con frase ácida dicha en voz alta.
                     self.walk_pose = "front"
                     self._pose_ticks = self._front_pause_ticks()
+                    self._current_speed = 0.0
                     quip = random.choice(self.WALK_QUIPS)
                     self._solo_text = quip
                     self._update_bubble_visibility()
@@ -596,6 +685,7 @@ class DesktopRobot(RobotPaintingMixin, QWidget):
         super().leaveEvent(event)
 
     def _toggle_controls(self):
+        self._touch_activity()
         if self.input_container.isHidden():
             self.state = "IDLE"
             self._solo_text = None
@@ -616,7 +706,11 @@ class DesktopRobot(RobotPaintingMixin, QWidget):
         if event.button() == Qt.MouseButton.LeftButton:
             if self.worker is not None:
                 return
+            self._touch_activity()
+            self.set_mood("surprised", ticks=12)
             self.drag_pos = event.globalPosition().toPoint() - self.frameGeometry().topLeft()
+            self._last_drag_x = self.x()
+            self._slide_velocity = 0.0
             if event.position().y() >= self.height() - self.ROBOT_DRAW_HEIGHT - 6:
                 self._toggle_controls()
         elif event.button() == Qt.MouseButton.RightButton:
@@ -656,11 +750,27 @@ class DesktopRobot(RobotPaintingMixin, QWidget):
             elif action == settings_action:
                 self._open_settings()
 
+    def mouseMoveEvent(self, event):
+        """Arrastrar el robot: la ventana sigue al cursor pegada al suelo."""
+        if self.drag_pos is not None and event.buttons() & Qt.MouseButton.LeftButton:
+            target = event.globalPosition().toPoint() - self.drag_pos
+            new_x = max(self.screen_left, min(target.x(), self.screen_right))
+            if self._last_drag_x is not None:
+                self._slide_velocity = max(-14.0, min(14.0, new_x - self._last_drag_x))
+            self._last_drag_x = new_x
+            self.move(new_x, self.screen_bottom - self.height())
+        super().mouseMoveEvent(event)
+
     def mouseReleaseEvent(self, event):
         was_dragging = self.drag_pos is not None
         self.drag_pos = None
         if was_dragging:
-            self.anchor_to_ground()
+            # Inercia + squash & stretch: el robot aterriza, no se queda clavado.
+            self._slide_ticks = 8 if abs(self._slide_velocity) >= 2.0 else 0
+            self._squash_ticks = 8
+            if self._slide_ticks == 0:
+                self.anchor_to_ground()
+        self._last_drag_x = None
         super().mouseReleaseEvent(event)
 
     # ---- Chat: delegación en ChatView ----
@@ -790,6 +900,7 @@ class DesktopRobot(RobotPaintingMixin, QWidget):
         self.start_worker("", use_mic=True)
 
     def start_worker(self, prompt, use_mic, image=None):
+        self._touch_activity()
         if not use_mic and not image:
             skill = local_skills.match_skill(prompt)
             if skill is not None:
@@ -851,6 +962,7 @@ class DesktopRobot(RobotPaintingMixin, QWidget):
                 pass
         self.voice.stop()
         self.state = "IDLE"
+        self.set_mood("confused", ticks=30)
         self._set_busy(False)
         self._bubble_set_text("Consulta cancelada. Más rápida que tu paciencia, eh.")
         self.anchor_to_ground()
@@ -962,6 +1074,7 @@ class DesktopRobot(RobotPaintingMixin, QWidget):
         if self._closing:
             return
         self._answer_received = True
+        self.set_mood("happy", ticks=36)
         self.bubble.set_status(None)
         if self.bubble.messages and self.bubble.messages[-1]["role"] == "assistant":
             self.bubble.messages[-1]["text"] = response_text
